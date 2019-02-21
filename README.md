@@ -1,4 +1,4 @@
-# Pytorch implementation of constractive predictive coding (CPC)
+# Pytorch implementation of contractive predictive coding (CPC)
 * Original paper: "Representation Learning with Contrastive Predictive Coding
 ", Aaron van den Oord, Yazhe Li, Oriol Vinyals,  (https://arxiv.org/abs/1807.03748)
 
