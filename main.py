@@ -211,15 +211,15 @@ def validate(dataset_joint, dataset_marginal, model, L, K, num_eval=10, batch_si
     model.train()
     return results
 
-parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument('-K', metavar='K', type=int, help='an integer for the accumulator')
-parser.add_argument('-L', metavar='L', type=int, help='an integer for the accumulator')
-
 
 if __name__ == '__main__':
-    # Parameters
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('-K', metavar='K', type=int, help='an integer for the accumulator')
+    parser.add_argument('-L', metavar='L', type=int, help='an integer for the accumulator')
     args = parser.parse_args()
     print(args)
+
+    # Parameters
     K = args.K # maximum prediction steps (sequence length of future sequences)
     L = args.L # context size
     num_batch = 10000  # the number of batch size to train
