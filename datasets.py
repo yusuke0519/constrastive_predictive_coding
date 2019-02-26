@@ -13,7 +13,6 @@ import torch.utils.data as data
 
 # # -*- coding: utf-8 -*-
 import torch
-import torch.utils.data as data
 
 
 class Subset(torch.utils.data.Dataset):
@@ -78,8 +77,8 @@ class DomainDatasetBase(data.ConcatDataset):
             return getattr(cls, name)
         elif hasattr(cls.SingleDataset, name):
             return getattr(cls.SingleDataset, name)
-        
-        
+
+
 CONFIG = {}
 CONFIG['url'] = 'http://www.opportunity-project.eu/system/files/Challenge/OpportunityChallengeLabeled.zip'
 CONFIG['out'] = os.path.expanduser('~/.torch/datasets/Opportunity')
@@ -162,13 +161,12 @@ class _SingleUserSingleADL(data.Dataset):
     def __getitem__(self, index):
         X = self.X[index:index+self.T][..., np.newaxis].swapaxes(0, -1)
         Y = np.array(self.Y[index:index+self.T]).reshape(1, -1)
-        
-        return X, Y # , self.domain_key
+        return X, Y  # , self.domain_key
 
     def __len__(self):
         return self.length - (self.T - 1)
 
-    
+
 class OppG(DomainDatasetBase):
     SingleDataset = _SingleUserSingleADL
     target = "Gestures"
@@ -179,7 +177,7 @@ class OppG(DomainDatasetBase):
         self.l_sample = l_sample
         self.T = T
         super(OppG, self).__init__(domain_keys, require_domain, datasets=datasets)
-    
+
     def get_single_dataset(self, domain_key, **kwargs):
         datasets = []
         for adl_id in self.SingleDataset.all_adls:
@@ -192,7 +190,7 @@ class OppG(DomainDatasetBase):
     def domain_specific_params(self):
         return {'l_sample': self.l_sample, 'interval': self.interval, 'T': self.T}
 
-    
+
 def load_col_names(dirname):
     file_name = os.path.join(dirname, CONFIG['column_names'])
     allLines = open(file_name).read().replace('\r', '').split('\n')
