@@ -16,18 +16,6 @@ import torch
 import torch.utils.data as data
 
 
-class Subset(torch.utils.data.Dataset):
-    def __init__(self, dataset, indices):
-        self.dataset = dataset
-        self.indices = indices
-
-    def __getitem__(self, idx):
-        return self.dataset[self.indices[idx]]
-
-    def __len__(self):
-        return len(self.indices)
-
-
 class DomainDatasetBase(data.ConcatDataset):
     """ Base class for multi domain dataset class
     subclasses must have these class variables:
@@ -85,6 +73,7 @@ CONFIG['url'] = 'http://www.opportunity-project.eu/system/files/Challenge/Opport
 CONFIG['out'] = os.path.expanduser('~/.torch/datasets/Opportunity')
 CONFIG['column_names'] = 'challenge_column_names.txt'
 CONFIG['label_legend'] = 'challenge_label_legend.txt'
+
 
 
 class _SingleUserSingleADL(data.Dataset):
