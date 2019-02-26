@@ -13,9 +13,13 @@ from torch import nn
 import torch.utils.data as data
 from torch import optim
 import torch
-from opportunity import Encoder, ContextEncoder, Predictor
 from collections import OrderedDict
 from sklearn import metrics
+
+from datasets import OppG
+from opportunity import Encoder, ContextEncoder, Predictor
+from utils import split_dataset
+from cpc import CPCModel, get_context
 
 
 class Classifier(nn.Module):
@@ -35,12 +39,6 @@ class Classifier(nn.Module):
             nn.Linear(input_size, num_classes),
             nn.LogSoftmax(dim=-1)
         )
-        # self.classifier = nn.Sequential(
-        #     nn.Linear(input_size, 100),
-        #     nn.ReLU(True),
-        #     nn.Linear(100, num_classes),
-        #     nn.LogSoftmax(dim=-1)
-        # )
 
     def forward(self, X):
         if self.c_enc is None:
@@ -94,11 +92,6 @@ def validate_label_prediction(classifier, dataset, batch_size=128, nb_batch=None
 
 def label_predict(L, K, g_enc_size, num_gru, pretrain, finetune_g):
     # Load dataset
-    from datasets import OppG
-    import torch.utils.data as data
-    from utils import split_dataset
-    from main import CPCModel
-
     print("Load datasets ...")
     dataset_joint = OppG('S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K+L)
     train_dataset_joint, valid_dataset_joint = split_dataset(dataset_joint, shuffle=False, drop_first=True)
