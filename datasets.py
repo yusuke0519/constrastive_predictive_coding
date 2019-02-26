@@ -172,15 +172,19 @@ class OppG(DomainDatasetBase):
     target = "Gestures"
     num_classes = 18
 
-    def __init__(self, domain_keys, require_domain=True, datasets=None, l_sample=30, interval=15, T=1):
+    def __init__(self, domain_keys, require_domain=True, adl_ids=None, datasets=None, l_sample=30, interval=15, T=1):
         self.interval = interval
         self.l_sample = l_sample
         self.T = T
+        if adl_ids is None:
+            adl_ids = _SingleUserSingleADL.all_adls
+
+        self.adl_ids = adl_ids
         super(OppG, self).__init__(domain_keys, require_domain, datasets=datasets)
 
     def get_single_dataset(self, domain_key, **kwargs):
         datasets = []
-        for adl_id in self.SingleDataset.all_adls:
+        for adl_id in self.adl_ids:
             dataset = self.SingleDataset(
                 domain_key=domain_key, adl_id=adl_id, target_key=self.target, **kwargs
             )
