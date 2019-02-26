@@ -18,7 +18,7 @@ from sklearn import metrics
 
 from datasets import OppG
 from opportunity import Encoder, ContextEncoder, Predictor
-from utils import split_dataset
+# from utils import split_dataset
 from cpc import CPCModel, get_context
 
 
@@ -111,9 +111,11 @@ def validate_label_prediction(classifier, dataset, L, batch_size=128, nb_batch=N
 def label_predict(L, K, g_enc_size, num_gru, pretrain, finetune_g):
     # Load dataset
     print("Load datasets ...")
-    dataset_joint = OppG('S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K+L)
-    train_dataset_joint, valid_dataset_joint = split_dataset(dataset_joint, shuffle=False, drop_first=True)
-    train_loader_joint = data.DataLoader(dataset_joint, batch_size=128, shuffle=True)
+    train_dataset_joint = OppG(
+        'S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K+L, adl_ids=['Drill', 'ADL1', 'ADL2', 'ADL3'])
+    valid_dataset_joint = OppG(
+        'S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K+L, adl_ids=['ADL4', 'ADL5'])
+    train_loader_joint = data.DataLoader(train_dataset_joint, batch_size=128, shuffle=True)
 
     # Test dataset for label prediction
     test_dataset = OppG('S1', 'Gestures', l_sample=30, interval=15, T=K+L)
@@ -131,14 +133,14 @@ def label_predict(L, K, g_enc_size, num_gru, pretrain, finetune_g):
     Case4: pretrain=False and finetune_g=False
     => Baseline with random representations (to clarify the effect of CPC, not an architecture)
     """
-    num_batch = 20000  # the number of batch size to train
+    num_batch = 10000  # the number of batch size to train
     monitor_per = 100  # output the result per monitor_each iterations
 
     # parameter for models
     context_size = g_enc_size / 2
 
     # parameter of label train
-    g_enc = Encoder(input_shape=dataset_joint.get('input_shape'), hidden_size=g_enc_size).cuda()
+    g_enc = Encoder(input_shape=train_dataset_joint.get('input_shape'), hidden_size=g_enc_size).cuda()
     c_enc = ContextEncoder(input_shape=g_enc.output_shape(), num_layers=num_gru, hidden_size=context_size).cuda()
     predictor = Predictor((None, c_enc.hidden_size), g_enc.output_shape()[1], max_steps=K).cuda()
     model = CPCModel(g_enc, c_enc, predictor).cuda()
@@ -146,7 +148,7 @@ def label_predict(L, K, g_enc_size, num_gru, pretrain, finetune_g):
         model.load_state_dict(torch.load('{}-{}.pth'.format(folder_name, 10000)))
 
     classifier = Classifier(
-        num_classes=dataset_joint.get('num_classes'),
+        num_classes=train_dataset_joint.get('num_classes'),
         g_enc=g_enc, finetune_g=finetune_g).cuda()
     # optimizer = optim.Adam(classifier.parameters(), lr=0.001)
     optimizer = optim.Adam(classifier.parameters(), lr=0.001)
