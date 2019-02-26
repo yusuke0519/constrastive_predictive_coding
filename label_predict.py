@@ -75,7 +75,7 @@ class Classifier(nn.Module):
         return parameters
 
 
-def validate_label_prediction(classifier, dataset, batch_size=128, nb_batch=None):
+def validate_label_prediction(classifier, dataset, L, batch_size=128, nb_batch=None):
     loader = data.DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
     if nb_batch is None:
         nb_batch = len(loader)
@@ -167,11 +167,11 @@ def label_predict(L, K, g_enc_size, num_gru, pretrain, finetune_g):
         if ((num_iter + 1) % monitor_per) != 0:
             continue
         print(num_iter+1)
-        train_results.append(validate_label_prediction(classifier, train_dataset_joint, nb_batch=100))
+        train_results.append(validate_label_prediction(classifier, train_dataset_joint, L=L, nb_batch=100))
         print(train_results[-1])
-        valid_results.append(validate_label_prediction(classifier, valid_dataset_joint, nb_batch=100))
+        valid_results.append(validate_label_prediction(classifier, valid_dataset_joint, L=L, nb_batch=100))
         print(valid_results[-1])
-        test_results.append(validate_label_prediction(classifier, test_dataset, nb_batch=100))
+        test_results.append(validate_label_prediction(classifier, test_dataset, L=L, nb_batch=100))
         print(test_results[-1])
     folder_name = '{}/label_predict'.format(folder_name)
     os.makedirs(folder_name, exist_ok=True)
