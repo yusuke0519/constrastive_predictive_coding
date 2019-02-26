@@ -23,8 +23,11 @@ from cpc import CPCModel, get_context
 
 
 class Classifier(nn.Module):
-    def __init__(self, num_classes, g_enc, c_enc=None, finetune_g=False, finetune_c=False):
+    def __init__(self, num_classes, g_enc, c_enc=None, finetune_g=False, finetune_c=False, hiddens=None):
         super(Classifier, self).__init__()
+        if hiddens is None:
+            hiddens = []
+        assert isinstance(hiddens, list), "variable hiddens must be a list type object"
         self.g_enc = g_enc
         self.c_enc = c_enc
         self.finetune_g = finetune_g
@@ -35,18 +38,33 @@ class Classifier(nn.Module):
             input_size = g_enc.output_shape()[1]
         else:
             input_size = c_enc.hidden_size
-        self.classifier = nn.Sequential(
-            nn.Linear(input_size, num_classes),
-            nn.LogSoftmax(dim=-1)
-        )
+
+        layers = []
+        for i in hiddens:
+            layers.append(nn.Linear(input_size, i))
+            layers.append(nn.ReLU(True))
+            layers.append(nn.Dropout(0.5))
+            input_size = i
+        layers.append(nn.Linear(input_size, num_classes))
+        layers.append(nn.LogSoftmax(dim=-1))
+
+        self.classifier = nn.Sequential(*layers)
 
     def forward(self, X):
+        if not self.finetune_g:
+            self.g_enc.eval()  # It is necesaryy to deactivate dropout
+
         if self.c_enc is None:
-            z = self.g_enc(X[..., 0])
-            return self.classifier(z)
+            z = self.g_enc(X[..., -1])
+            y_pred = self.classifier(z)
         else:
+            # if not self.finetune_c:
+            #     self.c_enc.eval()
             c = get_context(X, self.g_enc, self.c_enc)
-            return self.classifier(c)
+            y_pred = self.classifier(c)
+            # self.c_enc.train()
+        self.g_enc.train()
+        return y_pred
 
     def parameters(self):
         parameters = list(self.classifier.parameters())
@@ -68,8 +86,8 @@ def validate_label_prediction(classifier, dataset, batch_size=128, nb_batch=None
     loss = 0
     criterion = nn.NLLLoss()
     for batch_idx, (X, Y) in enumerate(loader):
-        y = Y[:, 0, 0].long().cuda()
-        pred_y = classifier(X.float().cuda())
+        y = Y[:, 0, L-1].long().cuda()
+        pred_y = classifier(X[..., :L].float().cuda())
         loss += criterion(pred_y, y).item()
         ys.append(y.cpu().numpy())
         pred_y = np.argmax(pred_y.detach().cpu().numpy(), axis=1)
@@ -140,10 +158,7 @@ def label_predict(L, K, g_enc_size, num_gru, pretrain, finetune_g):
     for num_iter in range(num_batch):
         optimizer.zero_grad()
         X, Y = train_loader_joint.__iter__().__next__()
-        if classifier.c_enc is None:
-            y = Y[:, 0, 0].long().cuda()
-        else:
-            y = Y[:, 0, L].long().cuda()
+        y = Y[:, 0, L-1].long().cuda()
         pred_y = classifier(X[..., :L].float().cuda())
         loss = criterion(pred_y, y)
         loss.backward()
