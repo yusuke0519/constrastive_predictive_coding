@@ -97,11 +97,11 @@ def label_predict(L, K, g_enc_size, num_gru, pretrain, finetune_g):
     from datasets import OppG
     import torch.utils.data as data
     from utils import split_dataset
-    from main import CPCModel, get_context
+    from main import CPCModel
 
     print("Load datasets ...")
     dataset_joint = OppG('S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K+L)
-    train_dataset_joint, valid_dataset_joint = split_dataset(dataset_joint)
+    train_dataset_joint, valid_dataset_joint = split_dataset(dataset_joint, shuffle=False, drop_first=True)
     train_loader_joint = data.DataLoader(dataset_joint, batch_size=128, shuffle=True)
 
     # Test dataset for label prediction
@@ -120,7 +120,7 @@ def label_predict(L, K, g_enc_size, num_gru, pretrain, finetune_g):
     Case4: pretrain=False and finetune_g=False
     => Baseline with random representations (to clarify the effect of CPC, not an architecture)
     """
-    num_batch = 2000  # the number of batch size to train
+    num_batch = 20000  # the number of batch size to train
     monitor_per = 100  # output the result per monitor_each iterations
 
     # parameter for models

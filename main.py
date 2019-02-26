@@ -155,14 +155,14 @@ if __name__ == '__main__':
 
     print("Load datasets ...")
     dataset_joint = OppG('S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K+L)
-    train_dataset_joint, valid_dataset_joint = split_dataset(dataset_joint)
+    train_dataset_joint, valid_dataset_joint = split_dataset(dataset_joint, shuffle=False, drop_first=True)
     train_loader_joint = data.DataLoader(dataset_joint, batch_size=128, shuffle=True)
     valid_loader_joint = data.DataLoader(dataset_joint, batch_size=128, shuffle=False)
 
     # marginal sample come from same datasets for simplicity
     # Same train-valid split with joint dataset
     dataset_marginal = OppG('S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K)
-    train_dataset_marginal, valid_dataset_marginal = split_dataset(dataset_marginal)
+    train_dataset_marginal, valid_dataset_marginal = split_dataset(dataset_marginal, shuffle=False, drop_first=True)
     train_loader_marginal = data.DataLoader(dataset_marginal, batch_size=128, shuffle=True)
     valid_loader_marginal = data.DataLoader(dataset_marginal, batch_size=128, shuffle=False)
 
