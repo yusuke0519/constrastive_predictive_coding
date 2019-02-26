@@ -5,10 +5,8 @@ References: TODO
 """
 import os
 import argparse
-from datasets import OppG
 from collections import OrderedDict
 import pandas as pd
-
 
 import torch
 from torch import nn
@@ -16,17 +14,19 @@ import torch.utils.data as data
 from torch.autograd import Variable
 from torch import optim
 
+from datasets import OppG
 from opportunity import Encoder, ContextEncoder, Predictor
 from utils import split_dataset
 from cpc import CPCModel
+from label_predict import label_predict
 
 
 def validate(dataset_joint, dataset_marginal, model, L, K, num_eval=10, batch_size=128):
     """Evaluate the model."""
     model.eval()
 
-    loader_joint = data.DataLoader(dataset_joint, batch_size=batch_size, shuffle=False, drop_last=True)
-    loader_marginal = data.DataLoader(dataset_marginal, batch_size=batch_size, shuffle=False, drop_last=True)
+    loader_joint = data.DataLoader(dataset_joint, batch_size=batch_size, shuffle=True, drop_last=True)
+    loader_marginal = data.DataLoader(dataset_marginal, batch_size=batch_size, shuffle=True, drop_last=True)
 
     if num_eval is None:
         num_eval = len(loader_joint)
@@ -52,7 +52,6 @@ def validate(dataset_joint, dataset_marginal, model, L, K, num_eval=10, batch_si
             break
 
     results = OrderedDict()
-
     for k in range(K):
         results['loss-{}'.format(k)] = losses[k] / (2*(i+1))
         results['accuracy-{}'.format(k)] = float(TP[k]+TN[k]) / float(FP[k]+FN[k]+TP[k]+TN[k])
@@ -88,14 +87,12 @@ if __name__ == '__main__':
     dataset_joint = OppG('S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K+L)
     train_dataset_joint, valid_dataset_joint = split_dataset(dataset_joint, shuffle=False, drop_first=True)
     train_loader_joint = data.DataLoader(dataset_joint, batch_size=128, shuffle=True)
-    valid_loader_joint = data.DataLoader(dataset_joint, batch_size=128, shuffle=False)
 
     # marginal sample come from same datasets for simplicity
     # Same train-valid split with joint dataset
     dataset_marginal = OppG('S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K)
     train_dataset_marginal, valid_dataset_marginal = split_dataset(dataset_marginal, shuffle=False, drop_first=True)
     train_loader_marginal = data.DataLoader(dataset_marginal, batch_size=128, shuffle=True)
-    valid_loader_marginal = data.DataLoader(dataset_marginal, batch_size=128, shuffle=False)
 
     # Model parameters
     print("Prepare models ...")
@@ -132,10 +129,10 @@ if __name__ == '__main__':
         if (num_iter+1) % monitor_each != 0:
             continue
         print(num_iter+1, loss.item())
-        train_result = validate(train_dataset_joint, train_dataset_marginal, model, L, K, num_eval=100)
+        train_result = validate(train_dataset_joint, train_dataset_marginal, model, L, K, num_eval=None)
         train_results.append(train_result)
         print("  train CPC: ", train_result)
-        valid_result = validate(valid_dataset_joint, valid_dataset_marginal, model, L, K, num_eval=100)
+        valid_result = validate(valid_dataset_joint, valid_dataset_marginal, model, L, K, num_eval=None)
         valid_results.append(valid_result)
         print("  valid CPC: ", valid_result)
         torch.save(model.state_dict(), '{}/{}-{}-{}.pth'.format(folder_name, L, K, num_iter+1))
@@ -145,7 +142,6 @@ if __name__ == '__main__':
     valid_results.to_csv('{}/{}-{}-valid.csv'.format(folder_name, L, K))
 
     # label_prediction
-    from label_predict import label_predict
     label_predict(L, K, g_enc_size, num_gru, True, False)  # CPC only
     label_predict(L, K, g_enc_size, num_gru, True, True)  # CPC + Finetune
     label_predict(L, K, g_enc_size, num_gru, False, True)  # Supervised
