@@ -28,7 +28,7 @@ class Encoder(nn.Module):
         elif activation == 'lrelu':
             activation = nn.LeakyReLU
 
-        self.feature = nn.Sequential(
+        self.conv = nn.Sequential(
             nn.Conv2d(input_shape[0], 50, kernel_size=(1, 5)),
             activation(),
             nn.MaxPool2d(kernel_size=(1, 2)),
@@ -38,18 +38,26 @@ class Encoder(nn.Module):
             nn.Conv2d(40, 20, kernel_size=(1, 3)),
             activation(),
             nn.Dropout(0.5),
-            Flatten(),
-            nn.Linear(linear_size, self.hidden_size),
-            activation(),
-            nn.Dropout(0.5),
+            Flatten()
         )
+        self.output_size = linear_size
+        
+        if self.hidden_size is not None:
+            self.fc = nn.Sequential(
+                nn.Linear(linear_size, self.hidden_size),
+                activation(),
+                nn.Dropout(0.5),
+            )
+            self.output_size = hidden_size
 
     def forward(self, input_data):
-        feature = self.feature(input_data)
+        feature = self.conv(input_data)
+        if hasattr(self, "fc"):
+            feature = self.fc(feature)
         return feature
 
     def output_shape(self):
-        return (None, self.hidden_size)
+        return (None, self.output_size)
 
 
 class ContextEncoder(nn.Module):
