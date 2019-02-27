@@ -28,7 +28,7 @@ class Encoder(nn.Module):
         elif activation == 'lrelu':
             activation = nn.LeakyReLU
 
-        self.conv = nn.Sequential(
+        layers = [
             nn.Conv2d(input_shape[0], 50, kernel_size=(1, 5)),
             activation(),
             nn.MaxPool2d(kernel_size=(1, 2)),
@@ -39,22 +39,33 @@ class Encoder(nn.Module):
             activation(),
             nn.Dropout(0.5),
             Flatten()
-        )
+        ]
+        # self.conv = nn.Sequential(*conv_layers)
         self.output_size = linear_size
-        
+
         if self.hidden_size is not None:
-            self.fc = nn.Sequential(
+            fc_layers = [
                 nn.Linear(linear_size, self.hidden_size),
                 activation(),
-                nn.Dropout(0.5),
-            )
+                nn.Dropout(0.5)]
+            # self.fc = nn.Sequential(*fc_layers)
             self.output_size = hidden_size
+            layers = layers + fc_layers
+        self.feature = nn.Sequential(*layers)
+        # if self.hidden_size is not None:
+        #     self.fc = nn.Sequential(
+        #         nn.Linear(linear_size, self.hidden_size),
+        #         activation(),
+        #         nn.Dropout(0.5),
+        #     )
+        #     self.output_size = hidden_size
 
     def forward(self, input_data):
-        feature = self.conv(input_data)
-        if hasattr(self, "fc"):
-            feature = self.fc(feature)
-        return feature
+        return self.feature(input_data)
+        # feature = self.conv(input_data)
+        # if hasattr(self, "fc"):
+        #     feature = self.fc(feature)
+        # return feature
 
     def output_shape(self):
         return (None, self.output_size)

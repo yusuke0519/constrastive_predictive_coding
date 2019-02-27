@@ -108,7 +108,7 @@ def validate_label_prediction(classifier, dataset, L, batch_size=128, nb_batch=N
     return result
 
 
-def label_predict(L, K, g_enc_size, num_gru, pretrain, finetune_g):
+def label_predict(L, K, g_enc_size, num_gru, pretrain, finetune_g, use_c_enc=False):
     # Load dataset
     print("Load datasets ...")
     train_dataset_joint = OppG(
@@ -147,9 +147,15 @@ def label_predict(L, K, g_enc_size, num_gru, pretrain, finetune_g):
     if pretrain:
         model.load_state_dict(torch.load('{}-{}.pth'.format(folder_name, 10000)))
 
-    classifier = Classifier(
-        num_classes=train_dataset_joint.get('num_classes'),
-        g_enc=g_enc, finetune_g=finetune_g).cuda()
+    if use_c_enc:
+        classifier = Classifier(
+            num_classes=train_dataset_joint.get('num_classes'),
+            g_enc=g_enc, c_enc=c_enc, finetune_g=finetune_g, finetune_c=finetune_g).cuda()
+    else:
+        classifier = Classifier(
+            num_classes=train_dataset_joint.get('num_classes'),
+            g_enc=g_enc, finetune_g=finetune_g).cuda()
+    print(classifier)
     # optimizer = optim.Adam(classifier.parameters(), lr=0.001)
     optimizer = optim.Adam(classifier.parameters(), lr=0.001)
     criterion = nn.NLLLoss()
@@ -157,6 +163,8 @@ def label_predict(L, K, g_enc_size, num_gru, pretrain, finetune_g):
     train_results = []
     valid_results = []
     test_results = []
+    folder_name = '{}/label_predict'.format(folder_name)
+    os.makedirs(folder_name, exist_ok=True)
     for num_iter in range(num_batch):
         optimizer.zero_grad()
         X, Y = train_loader_joint.__iter__().__next__()
@@ -169,17 +177,18 @@ def label_predict(L, K, g_enc_size, num_gru, pretrain, finetune_g):
         if ((num_iter + 1) % monitor_per) != 0:
             continue
         print(num_iter+1)
-        train_results.append(validate_label_prediction(classifier, train_dataset_joint, L=L, nb_batch=100))
+        train_results.append(validate_label_prediction(classifier, train_dataset_joint, L=L, nb_batch=None))
         print(train_results[-1])
-        valid_results.append(validate_label_prediction(classifier, valid_dataset_joint, L=L, nb_batch=100))
+        valid_results.append(validate_label_prediction(classifier, valid_dataset_joint, L=L, nb_batch=None))
         print(valid_results[-1])
-        test_results.append(validate_label_prediction(classifier, test_dataset, L=L, nb_batch=100))
+        test_results.append(validate_label_prediction(classifier, test_dataset, L=L, nb_batch=None))
         print(test_results[-1])
-    folder_name = '{}/label_predict'.format(folder_name)
-    os.makedirs(folder_name, exist_ok=True)
-    pd.DataFrame(train_results).to_csv(os.path.join(folder_name, '{}-{}-train.csv'.format(pretrain, finetune_g)))
-    pd.DataFrame(valid_results).to_csv(os.path.join(folder_name, '{}-{}-valid.csv'.format(pretrain, finetune_g)))
-    pd.DataFrame(test_results).to_csv(os.path.join(folder_name, '{}-{}-test.csv'.format(pretrain, finetune_g)))
+        pd.DataFrame(train_results).to_csv(
+            os.path.join(folder_name, '{}-{}-{}-train.csv'.format(pretrain, finetune_g, use_c_enc)))
+        pd.DataFrame(valid_results).to_csv(
+            os.path.join(folder_name, '{}-{}-{}-valid.csv'.format(pretrain, finetune_g, use_c_enc)))
+        pd.DataFrame(test_results).to_csv(
+            os.path.join(folder_name, '{}-{}-{}-test.csv'.format(pretrain, finetune_g, use_c_enc)))
 
 
 if __name__ == '__main__':
@@ -188,6 +197,7 @@ if __name__ == '__main__':
     parser.add_argument('-L', metavar='L', type=int, help='an integer for the accumulator')
     parser.add_argument('--hidden', metavar='hidden', type=int, help='an integer for the accumulator')
     parser.add_argument('--gru', metavar='gru', type=int, help='an integer for the accumulator')
+    # parser.add_argument('--pretrain', metavar='pretrain', type=int, help='an integer for the accumulator')
     args = parser.parse_args()
     print(args)
 
@@ -199,6 +209,9 @@ if __name__ == '__main__':
     g_enc_size = args.hidden
     num_gru = args.gru
 
+    label_predict(L, K, g_enc_size, num_gru, True, False, True)  # CPC only
+    label_predict(L, K, g_enc_size, num_gru, False, True, True)  # CPC only
+    label_predict(L, K, g_enc_size, num_gru, True, True, True)  # CPC only
     label_predict(L, K, g_enc_size, num_gru, True, False)  # CPC only
     label_predict(L, K, g_enc_size, num_gru, True, True)  # CPC + Finetune
     label_predict(L, K, g_enc_size, num_gru, False, True)  # Supervised

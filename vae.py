@@ -5,36 +5,31 @@ References: TODO
 """
 import os
 import argparse
-from collections import OrderedDict
 import pandas as pd
 
 import torch
 from torch import nn
 import torch.utils.data as data
-from torch.autograd import Variable
 from torch import optim
-
-from datasets import OppG
-from opportunity import Encoder, ContextEncoder, Predictor
-# from utils import split_dataset
-import torch
-from torch import nn
 from torch.nn import functional as F
-from pixyz.distributions import Normal, Normal
+from pixyz.distributions import Normal
 from pixyz.losses import KullbackLeibler
 from pixyz.models import VAE
 
-import os
+from datasets import OppG
+from opportunity import Encoder, ContextEncoder, Predictor
+from cpc import CPCModel
+
 from label_predict import Classifier, validate_label_prediction
 
 
 def label_predict(datasets, L, K, g_enc_size, num_gru, pretrain, finetune_g, mode='VAE', num_batch=10000, monitor_per=100, iteration_at=10000):
     """Train label classifier.
-    
+
     Parameter
     ---------
     num_batch : int
-        the number of batch size to train (default 20000)  
+        the number of batch size to train (default 20000)
     monitor_per : int
         output the result per monitor_each iterations (default=100)
 
@@ -43,11 +38,11 @@ def label_predict(datasets, L, K, g_enc_size, num_gru, pretrain, finetune_g, mod
     print("Load datasets ...")
     train_dataset_joint, valid_dataset_joint, test_dataset = datasets
     train_loader_joint = data.DataLoader(train_dataset_joint, batch_size=128, shuffle=True)
-    
+
     if mode == 'CPC':
         folder_name = 'models/{}-{}/{}-{}'.format(g_enc_size, num_gru, L, K)
     elif mode == 'VAE':
-        folder_name = 'VAE/{}/{}-{}'.format(g_enc_size, L, K)        
+        folder_name = 'VAE/{}/{}-{}'.format(g_enc_size, L, K)
     os.makedirs(folder_name, exist_ok=True)
 
     # Parameters
@@ -63,7 +58,7 @@ def label_predict(datasets, L, K, g_enc_size, num_gru, pretrain, finetune_g, mod
     """
 
     # parameter of label train
-    
+
     print("Build a model (mode is {}) ... ".format(mode))
     if mode == 'CPC':
         # parameter for models
@@ -76,12 +71,12 @@ def label_predict(datasets, L, K, g_enc_size, num_gru, pretrain, finetune_g, mod
             model.load_state_dict(torch.load('{}-{}.pth'.format(folder_name, 1000)))
     elif mode == 'VAE':
         g_enc = Encoder(input_shape=train_dataset_joint.get('input_shape'), hidden_size=None).cuda()
-        q = Inference(g_enc, network_output=g_enc.output_shape()[1], z_size=g_enc_size).cuda() 
+        q = Inference(g_enc, network_output=g_enc.output_shape()[1], z_size=g_enc_size).cuda()
         if pretrain:
             q.load_state_dict(torch.load('{}-{}-q.pth'.format(folder_name, 100)))
         g_enc = nn.Sequential(q.network, q.network_mu)
-        g_enc.output_shape = lambda : (None, g_enc_size)  # dummy function, may be there exists a better way
-        
+        g_enc.output_shape = lambda: (None, g_enc_size)  # dummy function, may be there exists a better way
+
     classifier = Classifier(
         num_classes=train_dataset_joint.get('num_classes'),
         g_enc=g_enc, finetune_g=finetune_g).cuda()
@@ -91,7 +86,7 @@ def label_predict(datasets, L, K, g_enc_size, num_gru, pretrain, finetune_g, mod
     train_results = []
     valid_results = []
     test_results = []
-    
+
     print("Start training...")
     for num_iter in range(num_batch):
         optimizer.zero_grad()
@@ -113,7 +108,6 @@ def label_predict(datasets, L, K, g_enc_size, num_gru, pretrain, finetune_g, mod
         print(test_results[-1])
     folder_name = '{}/label_predict'.format(folder_name)
     os.makedirs(folder_name, exist_ok=True)
-    
     pd.DataFrame(train_results).to_csv(os.path.join(folder_name, '{}-{}-train.csv'.format(pretrain, finetune_g)))
     pd.DataFrame(valid_results).to_csv(os.path.join(folder_name, '{}-{}-valid.csv'.format(pretrain, finetune_g)))
     pd.DataFrame(test_results).to_csv(os.path.join(folder_name, '{}-{}-test.csv'.format(pretrain, finetune_g)))
@@ -125,8 +119,8 @@ def validate(dataset, p, q, model, num_eval=None, batch_size=128):
     loader = data.DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
     if num_eval is None:
         num_eval = len(loader)
-        
-    loss = 0    
+
+    loss = 0
     for x, _ in loader:
         loss += model.test({"x": x[..., 0].float().cuda()}).item()
 
@@ -140,15 +134,15 @@ def validate(dataset, p, q, model, num_eval=None, batch_size=128):
 class Inference(Normal):
     def __init__(self, network, network_output, z_size):
         super().__init__(cond_var=["x"], var=["z"], name="q")
-        
+
         self.network = network
         self.network_mu = nn.Linear(network_output, z_size)
         self.network_sigma = nn.Linear(network_output, z_size)
-        
+
     def forward(self, x):
         h = self.network(x)
         return {"loc": self.network_mu(h), "scale": F.softplus(self.network_sigma(h))}
-    
+
 
 class Geneator(Normal):
     def __init__(self, z_size, g_enc):
@@ -157,7 +151,7 @@ class Geneator(Normal):
         self.deconv1 = nn.ConvTranspose2d(20, 40, kernel_size=(1, 3), stride=(1, 2))
         self.deconv2 = nn.ConvTranspose2d(40, 50, kernel_size=(1, 5), stride=(1, 2))
         self.deconv3 = nn.ConvTranspose2d(50, 1, kernel_size=(1, 5), stride=(1, 2), output_padding=(0, 1))
-        
+
     def forward(self, z):
         h = self.fc(z)
         h = h.view(-1, 20, 113, 2)
@@ -167,10 +161,9 @@ class Geneator(Normal):
         return {"loc": h, "scale": torch.tensor(1.0).cuda()}
 
 
-def vae(datasets, g_enc_size, K, L, folder_name):
-    num_batch = 10000  # the number of batch size to train
-    monitor_each = 100  # output the result per monitor_each iterations
-    
+def vae(datasets, g_enc_size, K, L, folder_name, num_batch=10000):
+    monitor_each = 100  # output the result per monitor_each iterationss
+
     train_dataset_joint, valid_dataset_joint, test_dataset = datasets
     train_loader_joint = data.DataLoader(train_dataset_joint, batch_size=128, shuffle=True)
 
@@ -179,7 +172,7 @@ def vae(datasets, g_enc_size, K, L, folder_name):
     g_enc = Encoder(input_shape=train_dataset_joint.get('input_shape'), hidden_size=None).cuda()
     q = Inference(g_enc, network_output=g_enc.output_shape()[1], z_size=g_enc_size).cuda()
     p = Geneator(z_size=g_enc_size, g_enc=g_enc).cuda()
-    
+
     # prior
     loc = torch.tensor(0.).cuda()
     scale = torch.tensor(1.).cuda()
@@ -196,7 +189,7 @@ def vae(datasets, g_enc_size, K, L, folder_name):
 
     for num_iter in range(num_batch):
         x, _ = train_loader_joint.__iter__().__next__()
-        loss = model.train({"x": x[..., 0].float().cuda()})
+        _ = model.train({"x": x[..., 0].float().cuda()})
 
         if (num_iter+1) % monitor_each != 0:
             continue
@@ -225,6 +218,7 @@ if __name__ == '__main__':
     parser.add_argument('--hidden', metavar='hidden', type=int, help='an integer for the accumulator')
     parser.add_argument('--gru', metavar='gru', type=int, help='an integer for the accumulator')
     parser.add_argument('--mode', metavar='mode', default='VAE', type=str, help='VAE or CPC')
+    parser.add_argument('-N', metavar='N', type=int, default=10000, help='an integer for the accumulator')
     args = parser.parse_args()
     print(args)
 
@@ -234,7 +228,7 @@ if __name__ == '__main__':
 
     # parameter for models
     g_enc_size = args.hidden
-    
+
     print("Load datasets ...")
     train_dataset_joint = OppG(
         'S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K+L, adl_ids=['Drill', 'ADL1', 'ADL2', 'ADL3'])
@@ -246,9 +240,14 @@ if __name__ == '__main__':
     if args.mode == 'VAE':
         folder_name = 'VAE/{}'.format(g_enc_size)
         os.makedirs(folder_name, exist_ok=True)
-        vae(datasets, g_enc_size, K, L, folder_name)
-    label_predict(datasets=datasets, L=L, K=K, g_enc_size=400, num_gru=2, pretrain=True, finetune_g=False, mode='VAE', iteration_at=10000)
-    label_predict(datasets=datasets, L=L, K=K, g_enc_size=400, num_gru=2, pretrain=True, finetune_g=True, mode='VAE', iteration_at=10000)
+        if not os.path.exists('{}/{}-{}-{}-q.pth'.format(folder_name, L, K, args.N)):
+            vae(datasets, g_enc_size, K, L, folder_name, args.N)
+    label_predict(
+        datasets=datasets, L=L, K=K, g_enc_size=400, num_gru=2,
+        pretrain=True, finetune_g=False, mode='VAE', iteration_at=args.N)
+    label_predict(
+        datasets=datasets, L=L, K=K, g_enc_size=400, num_gru=2,
+        pretrain=True, finetune_g=True, mode='VAE', iteration_at=args.N)
     # # label_prediction
     # label_predict(L, K, g_enc_size, num_gru, True, False)  # CPC only
     # label_predict(L, K, g_enc_size, num_gru, True, True)  # CPC + Finetune
