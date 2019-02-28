@@ -34,6 +34,7 @@ def label_predict(datasets, L, K, g_enc_size, num_gru, pretrain, finetune_g, mod
         output the result per monitor_each iterations (default=100)
 
     """
+    # TODO: It should be combined with label_predict.py
     # Load dataset
     print("Load datasets ...")
     train_dataset_joint, valid_dataset_joint, test_dataset = datasets
@@ -243,11 +244,14 @@ if __name__ == '__main__':
         if not os.path.exists('{}/{}-{}-{}-q.pth'.format(folder_name, L, K, args.N)):
             vae(datasets, g_enc_size, K, L, folder_name, args.N)
     label_predict(
-        datasets=datasets, L=L, K=K, g_enc_size=400, num_gru=2,
+        datasets=datasets, L=L, K=K, g_enc_size=g_enc_size, num_gru=None,
         pretrain=True, finetune_g=False, mode='VAE', iteration_at=args.N)
     label_predict(
-        datasets=datasets, L=L, K=K, g_enc_size=400, num_gru=2,
+        datasets=datasets, L=L, K=K, g_enc_size=g_enc_size, num_gru=None,
         pretrain=True, finetune_g=True, mode='VAE', iteration_at=args.N)
+    label_predict(
+        datasets=datasets, L=L, K=K, g_enc_size=g_enc_size, num_gru=None,
+        pretrain=False, finetune_g=True, mode='VAE', iteration_at=args.N)
     # # label_prediction
     # label_predict(L, K, g_enc_size, num_gru, True, False)  # CPC only
     # label_predict(L, K, g_enc_size, num_gru, True, True)  # CPC + Finetune
