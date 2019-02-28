@@ -60,11 +60,14 @@ def validate(dataset_joint, dataset_marginal, model, L, K, num_eval=10, batch_si
     return results
 
 
+BASE_PATH = 'CPC/{}-{}-{}'
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-K', metavar='K', type=int, help='an integer for the accumulator')
     parser.add_argument('-L', metavar='L', type=int, help='an integer for the accumulator')
     parser.add_argument('--hidden', metavar='hidden', type=int, help='an integer for the accumulator')
+    parser.add_argument('--context', metavar='context', type=int, default=200, help='an integer for the accumulator')
     parser.add_argument('--gru', metavar='gru', type=int, help='an integer for the accumulator')
     args = parser.parse_args()
     print(args)
@@ -77,12 +80,13 @@ if __name__ == '__main__':
 
     # parameter for models
     g_enc_size = args.hidden
-    context_size = g_enc_size / 2
+    context_size = args.context
     num_gru = args.gru
 
-    folder_name = 'models/{}-{}'.format(g_enc_size, num_gru)
+    folder_name = BASE_PATH.format(g_enc_size, context_size, num_gru)
     os.makedirs(folder_name, exist_ok=True)
     if not os.path.exists('{}/{}-{}-{}.pth'.format(folder_name, L, K, num_batch)):
+        print("CPC training ...")
         print("Load datasets ...")
         train_dataset_joint = OppG(
             'S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K+L, adl_ids=['Drill', 'ADL1', 'ADL2', 'ADL3'])
@@ -145,8 +149,9 @@ if __name__ == '__main__':
         train_results.to_csv('{}/{}-{}-train.csv'.format(folder_name, L, K))
         valid_results.to_csv('{}/{}-{}-valid.csv'.format(folder_name, L, K))
 
-    # label_prediction
-    label_predict(L, K, g_enc_size, num_gru, True, False)  # CPC only
+    # # label_prediction
+    print("Train label classifier ...")
+    label_predict(L, K, g_enc_size, context_size, num_gru, True, False)  # CPC only
     label_predict(L, K, g_enc_size, num_gru, True, True)  # CPC + Finetune
     label_predict(L, K, g_enc_size, num_gru, False, True)  # Supervised
     label_predict(L, K, g_enc_size, num_gru, False, False)  # Random feature

@@ -22,6 +22,10 @@ from opportunity import Encoder, ContextEncoder, Predictor
 from cpc import CPCModel, get_context
 
 
+# Should not be repeated with main.py
+BASE_PATH = 'CPC/{}-{}-{}'
+
+
 class Classifier(nn.Module):
     def __init__(self, num_classes, g_enc, c_enc=None, finetune_g=False, finetune_c=False, hiddens=None):
         super(Classifier, self).__init__()
@@ -118,7 +122,7 @@ def validate_label_prediction(classifier, dataset, L, batch_size=128, nb_batch=N
 
 
 def label_predict(
-        L, K, g_enc_size, num_gru, pretrain,  # parameters for model
+        L, K, g_enc_size, context_size, num_gru, pretrain,  # parameters for model
         finetune_g, use_c_enc=False, finetune_c=False,
         num_batch=10000, iteration_at=10000):
     """Train label classifier.
@@ -173,12 +177,11 @@ def label_predict(
     # Test dataset for label prediction
     test_dataset = OppG('S1', 'Gestures', l_sample=30, interval=15, T=K+L)
 
-    folder_name = 'models/{}-{}/{}-{}'.format(g_enc_size, num_gru, L, K)
+    folder_name = BASE_PATH.format(g_enc_size, context_size, num_gru)
+    folder_name = '{}/{}-{}'.format(folder_name, L, K)
+    print(folder_name)
     os.makedirs(folder_name, exist_ok=True)
     monitor_per = 100  # output the result per monitor_each iterations
-
-    # parameter for models
-    context_size = g_enc_size / 2
 
     # parameter of label train
     g_enc = Encoder(input_shape=train_dataset_joint.get('input_shape'), hidden_size=g_enc_size).cuda()
@@ -238,6 +241,7 @@ if __name__ == '__main__':
     parser.add_argument('-K', metavar='K', type=int, help='an integer for the accumulator')
     parser.add_argument('-L', metavar='L', type=int, help='an integer for the accumulator')
     parser.add_argument('--hidden', metavar='hidden', type=int, help='an integer for the accumulator')
+    parser.add_argument('--context', metavar='context', type=int, default=200, help='an integer for the accumulator')
     parser.add_argument('--gru', metavar='gru', type=int, help='an integer for the accumulator')
     # parser.add_argument('--pretrain', metavar='pretrain', type=int, help='an integer for the accumulator')
     args = parser.parse_args()
@@ -250,11 +254,12 @@ if __name__ == '__main__':
     # parameter for models
     g_enc_size = args.hidden
     num_gru = args.gru
+    context_size = args.context
 
-    label_predict(L, K, g_enc_size, num_gru, False, True, True)  # CPC only
-    label_predict(L, K, g_enc_size, num_gru, True, True, True)  # CPC only
-    label_predict(L, K, g_enc_size, num_gru, True, False, False, True)  # CPC only
-    label_predict(L, K, g_enc_size, num_gru, True, False, True, True)  # CPC only
+    label_predict(L, K, g_enc_size, context_size, num_gru, False, True, True)  # CPC only
+    label_predict(L, K, g_enc_size, context_size, num_gru, True, True, True)  # CPC only
+    label_predict(L, K, g_enc_size, context_size, num_gru, True, False, False, True)  # CPC only
+    label_predict(L, K, g_enc_size, context_size, num_gru, True, False, True, True)  # CPC only
     # label_predict(L, K, g_enc_size, num_gru, True, False, True)  # CPC only
     # label_predict(L, K, g_enc_size, num_gru, True, False, True)  # CPC only
     # label_predict(L, K, g_enc_size, num_gru, False, True, True)  # CPC only

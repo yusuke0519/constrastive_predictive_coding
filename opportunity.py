@@ -82,7 +82,8 @@ class ContextEncoder(nn.Module):
     def __init__(self, input_shape, hidden_size=200, num_layers=2):
         super(ContextEncoder, self).__init__()
         self.num_layers = num_layers
-        self.hidden_size = 200
+        self.hidden_size = hidden_size
+        print(input_shape[1], self.hidden_size)
         self.gru = nn.GRU(input_shape[1], hidden_size=self.hidden_size, num_layers=self.num_layers)
 
     def forward(self, X):
