@@ -75,7 +75,7 @@ def label_predict(datasets, L, K, g_enc_size, num_gru, pretrain, finetune_g, mod
         q = Inference(g_enc, network_output=g_enc.output_shape()[1], z_size=g_enc_size).cuda()
         if pretrain:
             q.load_state_dict(torch.load('{}-{}-q.pth'.format(folder_name, 100)))
-        g_enc = nn.Sequential(q.network, q.network_mu)
+        g_enc = nn.Sequential(q.network, q.network_mu, nn.ReLU(True), nn.Dropout(0.5))
         g_enc.output_shape = lambda: (None, g_enc_size)  # dummy function, may be there exists a better way
 
     classifier = Classifier(
@@ -242,7 +242,9 @@ if __name__ == '__main__':
         folder_name = 'VAE/{}'.format(g_enc_size)
         os.makedirs(folder_name, exist_ok=True)
         if not os.path.exists('{}/{}-{}-{}-q.pth'.format(folder_name, L, K, args.N)):
+            print("Training with VAE objectives")
             vae(datasets, g_enc_size, K, L, folder_name, args.N)
+    print("Training label predictor")
     label_predict(
         datasets=datasets, L=L, K=K, g_enc_size=g_enc_size, num_gru=None,
         pretrain=True, finetune_g=False, mode='VAE', iteration_at=args.N)
