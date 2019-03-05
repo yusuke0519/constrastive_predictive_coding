@@ -4,8 +4,9 @@ if [ $1 -eq 0 ]; then
     echo $1
     # context size
     eval "CUDA_VISIBLE_DEVICES=0 python main.py -K 5 -L 12 --hidden 1600 --gru 1"
-    eval "CUDA_VISIBLE_DEVICES=0 python main.py -K 5 -L 12 --hidden 1600 --gru 1 --context 800"
     eval "CUDA_VISIBLE_DEVICES=0 python main.py -K 5 -L 12 --hidden 1600 --gru 1 --context 400"
+    eval "CUDA_VISIBLE_DEVICES=0 python main.py -K 5 -L 12 --hidden 1600 --gru 1 --context 800"
+    eval "CUDA_VISIBLE_DEVICES=0 python main.py -K 5 -L 12 --hidden 1600 --gru 1 --context 1600"
 elif [ $1 -eq 1 ]; then
     echo $1
     # hidden size

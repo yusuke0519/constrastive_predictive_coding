@@ -152,10 +152,10 @@ if __name__ == '__main__':
     # # label_prediction
     print("Train label classifier ...")
     label_predict(L, K, g_enc_size, context_size, num_gru, True, False)  # CPC only
-    label_predict(L, K, g_enc_size, num_gru, True, True)  # CPC + Finetune
-    label_predict(L, K, g_enc_size, num_gru, False, True)  # Supervised
-    label_predict(L, K, g_enc_size, num_gru, False, False)  # Random feature
-    label_predict(L, K, g_enc_size, num_gru, True, False, True)  # Finetune context embedding
-    label_predict(L, K, g_enc_size, num_gru, False, True, True, True)  # Finetune context embedding
-    label_predict(L, K, g_enc_size, num_gru, True, True, True, True)  # Finetune context embedding
-    label_predict(L, K, g_enc_size, num_gru, True, False, True, True)  # Finetune context embedding
+    label_predict(L, K, g_enc_size, context_size, num_gru, True, True)  # CPC + Finetune
+    label_predict(L, K, g_enc_size, context_size, num_gru, False, True)  # Supervised
+    label_predict(L, K, g_enc_size, context_size, num_gru, False, False)  # Random feature
+    label_predict(L, K, g_enc_size, context_size, num_gru, True, False, True)  # Finetune context embedding
+    label_predict(L, K, g_enc_size, context_size, num_gru, False, True, True, True)  # Finetune context embedding
+    label_predict(L, K, g_enc_size, context_size, num_gru, True, True, True, True)  # Finetune context embedding
+    label_predict(L, K, g_enc_size, context_size, num_gru, True, False, True, True)  # Finetune context embedding

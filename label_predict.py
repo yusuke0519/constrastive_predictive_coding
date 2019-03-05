@@ -167,11 +167,15 @@ def label_predict(
 
     # Load dataset
     # TODO: it should be easy to change the dataset
+    all_adls = ['Drill', 'ADL1', 'ADL2', 'ADL3', 'ADL4', 'ADL5']
+    valid_adls = ['ADL3', 'ADL4', 'ADL5']
+    train_adls = list(set(all_adls) - set(valid_adls))
+    dataset_name = '-'.join(valid_adls)
     print("Load datasets ...")
     train_dataset_joint = OppG(
-        'S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K+L, adl_ids=['Drill', 'ADL1', 'ADL2', 'ADL3'])
+        'S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K+L, adl_ids=train_adls)
     valid_dataset_joint = OppG(
-        'S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K+L, adl_ids=['ADL4', 'ADL5'])
+        'S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K+L, adl_ids=valid_adls)
     train_loader_joint = data.DataLoader(train_dataset_joint, batch_size=128, shuffle=True)
 
     # Test dataset for label prediction
@@ -179,7 +183,8 @@ def label_predict(
 
     folder_name = BASE_PATH.format(g_enc_size, context_size, num_gru)
     folder_name = '{}/{}-{}'.format(folder_name, L, K)
-    print(folder_name)
+    # save_folder_name = '{}/{}-{}/{}'.format(folder_name, L, K, dataset_name)
+    # print(save_folder_name)
     os.makedirs(folder_name, exist_ok=True)
     monitor_per = 100  # output the result per monitor_each iterations
 
@@ -208,7 +213,7 @@ def label_predict(
     train_results = []
     valid_results = []
     test_results = []
-    folder_name = '{}/label_predict'.format(folder_name)
+    folder_name = '{}/{}/label_predict'.format(dataset_name, folder_name)
     os.makedirs(folder_name, exist_ok=True)
     for num_iter in range(num_batch):
         optimizer.zero_grad()
