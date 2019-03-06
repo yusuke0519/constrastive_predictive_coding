@@ -172,14 +172,16 @@ def label_predict(
     train_adls = list(set(all_adls) - set(valid_adls))
     dataset_name = '-'.join(valid_adls)
     print("Load datasets ...")
-    train_dataset_joint = OppG(
+    train_dataset = OppG(
         'S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K+L, adl_ids=train_adls)
-    valid_dataset_joint = OppG(
+    valid_dataset = OppG(
         'S2,S3,S4', 'Gestures', l_sample=30, interval=15, T=K+L, adl_ids=valid_adls)
-    train_loader_joint = data.DataLoader(train_dataset_joint, batch_size=128, shuffle=True)
-
-    # Test dataset for label prediction
+    train_loader_joint = data.DataLoader(train_dataset, batch_size=128, shuffle=True)
     test_dataset = OppG('S1', 'Gestures', l_sample=30, interval=15, T=K+L)
+
+    print("Train: {}, Valid: {}, Test: {}".format(
+        len(train_dataset), len(valid_dataset), len(test_dataset))
+    )
 
     folder_name = BASE_PATH.format(g_enc_size, context_size, num_gru)
     folder_name = '{}/{}-{}'.format(folder_name, L, K)
@@ -189,21 +191,20 @@ def label_predict(
     monitor_per = 100  # output the result per monitor_each iterations
 
     # parameter of label train
-    g_enc = Encoder(input_shape=train_dataset_joint.get('input_shape'), hidden_size=g_enc_size).cuda()
+    g_enc = Encoder(input_shape=train_dataset.get('input_shape'), hidden_size=g_enc_size).cuda()
     c_enc = ContextEncoder(input_shape=g_enc.output_shape(), num_layers=num_gru, hidden_size=context_size).cuda()
     predictor = Predictor((None, c_enc.hidden_size), g_enc.output_shape()[1], max_steps=K).cuda()
     model = CPCModel(g_enc, c_enc, predictor).cuda()
     if pretrain:
-        # TODO: 10000 should be arguments
         model.load_state_dict(torch.load('{}-{}.pth'.format(folder_name, iteration_at)))
 
     if use_c_enc:
         classifier = Classifier(
-            num_classes=train_dataset_joint.get('num_classes'),
+            num_classes=train_dataset.get('num_classes'),
             g_enc=g_enc, c_enc=c_enc, finetune_g=finetune_g, finetune_c=finetune_c).cuda()
     else:
         classifier = Classifier(
-            num_classes=train_dataset_joint.get('num_classes'),
+            num_classes=train_dataset.get('num_classes'),
             g_enc=g_enc, finetune_g=finetune_g).cuda()
     print(classifier)
     # optimizer = optim.Adam(classifier.parameters(), lr=0.001)
@@ -227,9 +228,9 @@ def label_predict(
         if ((num_iter + 1) % monitor_per) != 0:
             continue
         print(num_iter+1)
-        train_results.append(validate_label_prediction(classifier, train_dataset_joint, L=L, nb_batch=None))
+        train_results.append(validate_label_prediction(classifier, train_dataset, L=L, nb_batch=None))
         print('train', train_results[-1]['accuracy'], train_results[-1]['f1macro'])
-        valid_results.append(validate_label_prediction(classifier, valid_dataset_joint, L=L, nb_batch=None))
+        valid_results.append(validate_label_prediction(classifier, valid_dataset, L=L, nb_batch=None))
         print('valid', valid_results[-1]['accuracy'], valid_results[-1]['f1macro'])
         test_results.append(validate_label_prediction(classifier, test_dataset, L=L, nb_batch=None))
         print('test', test_results[-1]['accuracy'], test_results[-1]['f1macro'])
