@@ -40,6 +40,9 @@ def validate(dataset_joint, dataset_marginal, model, L, K, num_eval=10, batch_si
     for i, ((X_j, _), (X_m, _)) in enumerate(zip(loader_joint, loader_marginal)):
         X_j = X_j.float().cuda()
         X_m = X_m.float().cuda()
+        L = X_m.shape[-1]
+        K = X_j.shape[-1] - L
+
         score_j_list, score_m_list = model(X_j, X_m, L, K)
         for k in range(K):
             losses[k] += (-1.0 * torch.log(score_j_list[k]).mean() - torch.log(1-score_m_list[k]).mean()).item()
