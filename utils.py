@@ -61,7 +61,7 @@ def flatten_dict(tgt_dict):
 
 def param_iterator(param_dict):
     params = []
-    for key, values in param_dict.iteritems():
+    for key, values in iteritems(param_dict):
         if isinstance(values, list):
             params.append((key, values))
         else:
@@ -83,15 +83,9 @@ class CheckCompleteOption(CommandLineOption):
     @classmethod
     def apply(cls, args, run):
         db_name = run.config['db_name']
-        # config = {
-        #     'dataset': run.config['dataset'],
-        #     'model': run.config['model'],
-        #     'optim': run.config['optim'],
-        # }
-        config = run.config
-        print(config)
+        print(run.config)
         results = find_by_config(
-            config, status=['COMPLETED', 'RUNNING'], db_name=db_name, seed=run.config['seed'], exact_search=True)
+            run.config, status=['COMPLETED', 'RUNNING'], db_name=db_name, seed=run.config['seed'], exact_search=True)
         results = list(results)
         nb_results = len(results)
         have_record = nb_results > 0
@@ -105,8 +99,6 @@ class CheckCompleteOption(CommandLineOption):
             from sacred.observers import MongoObserver
             run.observers.append(MongoObserver.create(url='mongodb://localhost:27017', db_name=db_name))
             run.info['complete'] = False
-        else:
-            run.info['complete'] = True
 
 
 def find_by_config(config, prefix='config', status='COMPLETED', url=None, db_name=None, seed=None, collection_name='runs', fields=None, exact_search=False):
@@ -124,8 +116,10 @@ def find_by_config(config, prefix='config', status='COMPLETED', url=None, db_nam
     db = client[db_name]
 
     search_query = {}
-    for k, v in config.iteritems():
-        for k2, v2 in v.iteritems():
+    for k, v in iteritems(config):
+        if not isinstance(v, dict):
+            continue
+        for k2, v2 in iteritems(v):
             if isinstance(v2, list) and not exact_search:
                 search_query['{}.{}.{}'.format(prefix, k, k2)] = {'$in': v2}
             else:
@@ -136,7 +130,7 @@ def find_by_config(config, prefix='config', status='COMPLETED', url=None, db_nam
             search_query['{}.{}'.format(prefix, "seed")] = seed
         elif isinstance(seed, list):
             search_query['{}.{}'.format(prefix, "seed")] = {'$in': seed}
-
+    print(search_query)
     if status is None:
         return db[collection_name].find(search_query, fields)
 

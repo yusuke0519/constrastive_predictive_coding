@@ -1,8 +1,13 @@
 # # -*- coding: utf-8 -*-
 """Sacred wrapper for unsupervised representation learning."""
+from future.utils import iteritems
+import os
+import datetime
 import random
 from collections import OrderedDict
+import numpy as np
 import pandas as pd
+from tensorboardX import SummaryWriter
 # sacred
 from sacred import Experiment
 from sacred import Ingredient
@@ -15,7 +20,7 @@ from torch import optim
 from datasets import OppG
 from opportunity import Encoder, ContextEncoder, Predictor
 from cpc import CPCModel
-from utils import CheckCompleteOption
+from utils import CheckCompleteOption  # TODO: Find a way to avoid this import
 
 
 def get_dataset(name, validation, test_domain, L, K):
@@ -24,15 +29,17 @@ def get_dataset(name, validation, test_domain, L, K):
     Parameter
     ---------
     name : str
-    validation : list
+    validation : str or list
     test_domain : str or list
     L : int
     K : int
     """
+    if isinstance(validation, str):
+        validation = validation.split('-')
     all_adls = OppG.get('all_adls')
     all_domain = OppG.get('all_domain_key')
-    train_adls = list(set(all_adls) - set(validation))
-    train_domain = list(set(all_domain) - set([test_domain]))
+    train_adls = sorted(list(set(all_adls) - set(validation)))
+    train_domain = sorted(list(set(all_domain) - set([test_domain])))
     train_dataset_joint = OppG(
         train_domain, l_sample=30, interval=15, T=K+L, adl_ids=train_adls)
     valid_dataset_joint = OppG(
@@ -59,14 +66,13 @@ def get_model(input_shape, K, name, hidden, context, num_gru):
     c_enc = ContextEncoder(input_shape=g_enc.output_shape(), num_layers=num_gru, hidden_size=context).cuda()
     predictor = Predictor((None, c_enc.hidden_size), g_enc.output_shape()[1], max_steps=K).cuda()
     model = CPCModel(g_enc, c_enc, predictor).cuda()
-    print(model)
     return model
 
 
 data_ingredient = Ingredient('dataset')
 data_ingredient.add_config({
     "name": 'oppG',
-    'validation': ['ADL4', 'ADL5'],
+    'validation': 'ADL4-ADL5',
     'test_domain': 'S1',
     'L': 12,
     'K': 5,
@@ -92,7 +98,8 @@ ex = Experiment(ingredients=[data_ingredient, method_ingredient, optim_ingredien
 ex.add_config({
     'num_batch': 10000,
     'batch_size': 128,
-    'db_name': 'CPC'
+    'db_name': 'CPC_test',
+    'gpu': 0,
 })
 
 
@@ -163,25 +170,35 @@ def validate(dataset_joint, dataset_marginal, model, num_eval=10, batch_size=128
 
 
 @ex.automain
-def run(_config, _seed):
+def CPC(_config, _seed, _run):
     """Train a model with configurations."""
-    print(_config)
+    if ('complete' in _run.info) and (_run.info['complete']):
+        print("The task is already finished")
+        return None
+    log_dir = os.path.join(
+        _config['db_name'], datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'))
+    _run.info['log_dir'] = log_dir
+    writer = SummaryWriter(log_dir)
+
     monitor_per = 100
     random.seed(_seed)
+    np.random.seed(_seed)
     torch.manual_seed(_seed)
     torch.cuda.manual_seed(_seed)
+    torch.cuda.set_device(_config['gpu'])
     torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = False
 
     datasets = get_dataset(**_config['dataset'])
-    train_dataset_joint, _, _, _ = datasets
+    train_dataset_joint, valid_dataset_joint, train_dataset_marginal, valid_dataset_marginal = datasets
+    train_loader_joint = data.DataLoader(train_dataset_joint, batch_size=_config['batch_size'], shuffle=True)
+    train_loader_marginal = data.DataLoader(train_dataset_marginal, batch_size=_config['batch_size'], shuffle=True)
     model = get_model(
         input_shape=train_dataset_joint.get('input_shape'), K=_config['dataset']['K'], **_config['method']
     )
     optimizer = optim.Adam(model.parameters(), **_config['optim'])
-    train_dataset_joint, valid_dataset_joint, train_dataset_marginal, valid_dataset_marginal = datasets
-    train_loader_joint = data.DataLoader(train_dataset_joint, batch_size=_config['batch_size'], shuffle=True)
-    train_loader_marginal = data.DataLoader(train_dataset_marginal, batch_size=_config['batch_size'], shuffle=True)
+    print(model)
+    print(optimizer)
 
     train_results = []
     valid_results = []
@@ -197,8 +214,17 @@ def run(_config, _seed):
         valid_result = validate(valid_dataset_joint, valid_dataset_marginal, model, num_eval=None)
         valid_results.append(valid_result)
         print("  valid CPC: ", valid_result)
-        # torch.save(model.state_dict(), '{}/{}-{}-{}.pth'.format(folder_name, L, K, num_iter+1))
+        model_path = '{}/model_{}.pth'.format(log_dir, num_iter+1)
+        torch.save(model.state_dict(), model_path)
+        ex.add_artifact(model_path, name='model_{}'.format(num_iter+1))
+        # NOTE: I decided to desable add artifact feature for the moment
+        # Instead, one can retrieve the model information by simply load in accordance with info['log_dir']
+        # writer.add_scalars('train', train_result, num_iter+1)
+        # writer.add_scalars('valid', valid_result, num_iter+1)
+
     train_results = pd.DataFrame(train_results)
     valid_results = pd.DataFrame(valid_results)
-    # train_results.to_csv('{}/{}-{}-train.csv'.format(folder_name, L, K))
-    # valid_results.to_csv('{}/{}-{}-valid.csv'.format(folder_name, L, K))
+    result = writer.scalar_dict
+    for k, v in iteritems(result):
+        ks = k.split('/')
+        _run.info['{}-{}'.format(ks[-2], ks[-1])] = v
