@@ -33,6 +33,11 @@ def get_dataset(name, validation, test_domain, L, K):
     test_domain : str or list
     L : int
     K : int
+
+    Return
+    ------
+    {train/valid}_dataset_{joint/marginal} : torch.Dataset
+        {train/valid} datasets from {joint/marginal} distributions
     """
     if isinstance(validation, str):
         validation = validation.split('-')
@@ -51,8 +56,9 @@ def get_dataset(name, validation, test_domain, L, K):
         train_domain, l_sample=30, interval=15, T=K, adl_ids=train_adls)
     valid_dataset_marginal = OppG(
         train_domain, l_sample=30, interval=15, T=K, adl_ids=validation)
-    return train_dataset_joint, valid_dataset_joint, train_dataset_marginal, valid_dataset_marginal
-
+    test_dataset = OppG(test_domain, l_sample=30, interval=15, T=K+L)
+    
+    return train_dataset_joint, valid_dataset_joint, train_dataset_marginal, valid_dataset_marginal, test_dataset
 
 def get_model(input_shape, K, name, hidden, context, num_gru):
     """Prepare cpc model for training.
@@ -90,14 +96,20 @@ method_ingredient.add_config({
 
 optim_ingredient = Ingredient('optim')
 optim_ingredient.add_config({
-    'lr': 0.0001
+    'lr': 0.0001,
+    'num_batch': 10000,
+    'batch_size': 128,
+})
+
+invariance_ingredient = Ingredient('invariance')
+invariance_ingredient.add_config({
+
 })
 
 
 ex = Experiment(ingredients=[data_ingredient, method_ingredient, optim_ingredient])
 ex.add_config({
-    'num_batch': 10000,
-    'batch_size': 128,
+    # NOTE: the arguments here will not used for CheckCompleteOption
     'db_name': 'CPC_test',
     'gpu': 0,
 })
@@ -176,7 +188,7 @@ def CPC(_config, _seed, _run):
         print("The task is already finished")
         return None
     log_dir = os.path.join(
-        _config['db_name'], datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'))
+        "logs", _config['db_name'], datetime.datetime.now().strftime('%Y%m%d%H%M%S%f'))
     _run.info['log_dir'] = log_dir
     writer = SummaryWriter(log_dir)
 
@@ -190,20 +202,26 @@ def CPC(_config, _seed, _run):
     torch.backends.cudnn.benchmark = False
 
     datasets = get_dataset(**_config['dataset'])
-    train_dataset_joint, valid_dataset_joint, train_dataset_marginal, valid_dataset_marginal = datasets
-    train_loader_joint = data.DataLoader(train_dataset_joint, batch_size=_config['batch_size'], shuffle=True)
-    train_loader_marginal = data.DataLoader(train_dataset_marginal, batch_size=_config['batch_size'], shuffle=True)
+    train_dataset_joint, valid_dataset_joint, train_dataset_marginal, valid_dataset_marginal, _ = datasets
+    train_loader_joint = data.DataLoader(
+        train_dataset_joint, batch_size=_config['optim']['batch_size'], shuffle=True)
+    train_loader_marginal = data.DataLoader(
+        train_dataset_marginal, batch_size=_config['optim']['batch_size'], shuffle=True)
     model = get_model(
         input_shape=train_dataset_joint.get('input_shape'), K=_config['dataset']['K'], **_config['method']
     )
-    optimizer = optim.Adam(model.parameters(), **_config['optim'])
+    # TODO: enable to select various optimization options
+    # optimizer = optim.Adam(model.parameters(), **_config['optim'])
+    optimizer = optim.Adam(model.parameters(), lr=_config['optim']['lr'])
+    print("----- Model information -----")
     print(model)
     print(optimizer)
+    print("----- ------")
 
     train_results = []
     valid_results = []
 
-    for num_iter in range(_config['num_batch']):
+    for num_iter in range(_config['optim']['num_batch']):
         loss = train_CPC(train_loader_joint, train_loader_marginal, model, optimizer)
         if (num_iter+1) % monitor_per != 0:
             continue
@@ -216,11 +234,11 @@ def CPC(_config, _seed, _run):
         print("  valid CPC: ", valid_result)
         model_path = '{}/model_{}.pth'.format(log_dir, num_iter+1)
         torch.save(model.state_dict(), model_path)
-        ex.add_artifact(model_path, name='model_{}'.format(num_iter+1))
+        writer.add_scalars('train', train_result, num_iter+1)
+        writer.add_scalars('valid', valid_result, num_iter+1)
         # NOTE: I decided to desable add artifact feature for the moment
         # Instead, one can retrieve the model information by simply load in accordance with info['log_dir']
-        # writer.add_scalars('train', train_result, num_iter+1)
-        # writer.add_scalars('valid', valid_result, num_iter+1)
+        # ex.add_artifact(model_path, name='model_{}'.format(num_iter+1))
 
     train_results = pd.DataFrame(train_results)
     valid_results = pd.DataFrame(valid_results)
@@ -228,3 +246,14 @@ def CPC(_config, _seed, _run):
     for k, v in iteritems(result):
         ks = k.split('/')
         _run.info['{}-{}'.format(ks[-2], ks[-1])] = v
+
+
+"""Memo.
+
+#TODO
+* Sacred code for label prediction. Need both code and sacred option to manage that.
+* (Pending) Convert results we already done by main.py.
+* Enable to use various dataset.
+* Add VAE option for comparison.
+* Bug fix of CheckCompleteOption
+"""

@@ -1,33 +1,26 @@
 start=$(date)
+base="python run_sacred.py -x T with optim.lr=0.0001 seed=1234 gpu=$1"
 
-if [ $1 -eq 0 ]; then
-    echo $1
-    # context size
-    eval "CUDA_VISIBLE_DEVICES=0 python main.py -K 5 -L 12 --hidden 1600 --gru 1"
-    eval "CUDA_VISIBLE_DEVICES=0 python main.py -K 5 -L 12 --hidden 1600 --gru 1 --context 400"
-    eval "CUDA_VISIBLE_DEVICES=0 python main.py -K 5 -L 12 --hidden 1600 --gru 1 --context 800"
-    eval "CUDA_VISIBLE_DEVICES=0 python main.py -K 5 -L 12 --hidden 1600 --gru 1 --context 1600"
-elif [ $1 -eq 1 ]; then
-    echo $1
-    # hidden size
-    eval "CUDA_VISIBLE_DEVICES=1 python main.py -K 5 -L 12 --hidden 400 --gru 1"
-    eval "CUDA_VISIBLE_DEVICES=1 python main.py -K 5 -L 12 --hidden 800 --gru 1"
-    eval "CUDA_VISIBLE_DEVICES=1 python main.py -K 5 -L 12 --hidden 3200 --gru 1"
-elif [ $1 -eq 2 ]; then
-    echo $1
-    # K
-    eval "CUDA_VISIBLE_DEVICES=2 python main.py -K 1 -L 12 --hidden 1600 --gru 1"
-    eval "CUDA_VISIBLE_DEVICES=2 python main.py -K 3 -L 12 --hidden 1600 --gru 1"
-    eval "CUDA_VISIBLE_DEVICES=2 python main.py -K 7 -L 12 --hidden 1600 --gru 1"
-    eval "CUDA_VISIBLE_DEVICES=2 python vae.py -K 3 -L 12 --hidden 1600"
-elif [ $1 -eq 3 ]; then
-    echo $1
-    # L and gru
-    eval "CUDA_VISIBLE_DEVICES=3 python main.py -K 5 -L 9 --hidden 1600 --gru 1"
-    eval "CUDA_VISIBLE_DEVICES=3 python main.py -K 5 -L 15 --hidden 1600 --gru 1"
-    eval "CUDA_VISIBLE_DEVICES=0 python main.py -K 5 -L 12 --hidden 1600 --gru 2"
-    eval "CUDA_VISIBLE_DEVICES=2 python vae.py -K 3 -L 12 --hidden 400"
-fi
+# context size
+eval $base "method.hidden=1600"
+eval $base "method.hidden=1600 method.context=400"
+eval $base "method.hidden=1600 method.context=800"
+eval $base "method.hidden=1600 method.context=1600"
+# hidden
+eval $base "method.hidden=400"
+eval $base "method.hidden=800"
+eval $base "method.hidden=3200"
+# K
+eval $base "method.hidden=1600 method.context=800 dataset.K=1"
+eval $base "method.hidden=1600 method.context=800 dataset.K=3"
+eval $base "method.hidden=1600 method.context=800 dataset.K=5"
+eval $base "method.hidden=1600 method.context=800 dataset.K=7"
+# L
+eval $base "method.hidden=1600 method.context=800 dataset.L=9"
+eval $base "method.hidden=1600 method.context=800 dataset.L=12"
+eval $base "method.hidden=1600 method.context=800 dataset.L=15"
+# gru
+eval $base "method.hidden=1600 method.context=800 method.num_gru=2"
 fin=$(date)
 echo "Start: $start"
 echo "End: $fin"

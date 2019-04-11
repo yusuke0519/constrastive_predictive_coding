@@ -2,9 +2,9 @@
 """Utility files."""
 from future.utils import iteritems
 
-import os
 import itertools
 from sacred.commandline_options import CommandLineOption
+from sacred.observers import MongoObserver
 
 import numpy as np
 import torch.utils.data as data
@@ -52,10 +52,20 @@ def split_dataset(dataset, train_size=0.9, shuffle=False, drop_first=True):
 
 # # -*- coding: utf-8 -*-
 def flatten_dict(tgt_dict):
+    """Flatten the nested dictionary.
+
+    Parameter
+    ---------
+    tgt_dict : nested dictionary
+
+    """
     flat_dict = {}
     for k, v in iteritems(tgt_dict):
-        for k2, v2 in iteritems(v):
-            flat_dict["{}.{}".format(k, k2)] = v2
+        if isinstance(v, dict):
+            for k2, v2 in iteritems(v):
+                flat_dict["{}.{}".format(k, k2)] = v2
+        else:
+            flat_dict[k] = v
     return flat_dict
 
 
@@ -71,8 +81,8 @@ def param_iterator(param_dict):
         yield dict(zip(param_names, param_variation))
 
 
-def params_to_str(params):
-    return os.path.join(*[str(param) for param in params])
+# def params_to_str(params):
+#     return os.path.join(*[str(param) for param in params])
 
 
 class CheckCompleteOption(CommandLineOption):
@@ -93,10 +103,8 @@ class CheckCompleteOption(CommandLineOption):
 
         run.info['complete'] = have_record
         if not have_record:
-            from sacred.observers import MongoObserver
             run.observers.append(MongoObserver.create(url='mongodb://localhost:27017', db_name=db_name))
         elif args == 'F':
-            from sacred.observers import MongoObserver
             run.observers.append(MongoObserver.create(url='mongodb://localhost:27017', db_name=db_name))
             run.info['complete'] = False
 

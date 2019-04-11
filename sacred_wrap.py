@@ -127,7 +127,7 @@ class MongoExtractor(MongoClient):
         Parameters
         ----------
         config : dict
-            nested dictionary ({'dataset': dataset_dict, 'optim': optim_dict, 'model': model_dict}, etc)
+          flat dictionary (see utils.flatten_dict)
         fields : dict
         exact_search : bool (default: False)
         status : str (default: "COMPLETED")

@@ -168,7 +168,7 @@ def label_predict(
     # Load dataset
     # TODO: it should be easy to change the dataset
     all_adls = ['Drill', 'ADL1', 'ADL2', 'ADL3', 'ADL4', 'ADL5']
-    valid_adls = ['ADL3', 'ADL4', 'ADL5']
+    valid_adls = ['ADL1', 'ADL2', 'ADL3', 'ADL4', 'ADL5']
     train_adls = list(set(all_adls) - set(valid_adls))
     dataset_name = '-'.join(valid_adls)
     print("Load datasets ...")
