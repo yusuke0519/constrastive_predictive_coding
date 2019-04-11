@@ -57,8 +57,8 @@ def get_dataset(name, validation, test_domain, L, K):
     valid_dataset_marginal = OppG(
         train_domain, l_sample=30, interval=15, T=K, adl_ids=validation)
     test_dataset = OppG(test_domain, l_sample=30, interval=15, T=K+L)
-    
     return train_dataset_joint, valid_dataset_joint, train_dataset_marginal, valid_dataset_marginal, test_dataset
+
 
 def get_model(input_shape, K, name, hidden, context, num_gru):
     """Prepare cpc model for training.
@@ -75,6 +75,24 @@ def get_model(input_shape, K, name, hidden, context, num_gru):
     return model
 
 
+def verify_dataset(config, command_name, logger):
+    """Add assersion rule for datasets."""
+    REGISTERD_DATASETS = ['oppG']
+    assert config['dataset']['name'] in REGISTERD_DATASETS, "Invalid dataset name {}".format(
+            config['dataset']['name'])
+    return config
+
+
+def verify_method(config, command_name, logger):
+    """Add assersion rules."""
+    REGISTERD_METHOD = ['CPC']
+    assert config['method']['name'] in REGISTERD_METHOD, "Invalid method name {}".format(
+            config['method']['name'])
+
+    # TODO: Delete all parameters not related to the specified method
+    return config
+
+
 data_ingredient = Ingredient('dataset')
 data_ingredient.add_config({
     "name": 'oppG',
@@ -83,7 +101,7 @@ data_ingredient.add_config({
     'L': 12,
     'K': 5,
 })
-
+data_ingredient.config_hook(verify_dataset)
 
 method_ingredient = Ingredient('method')
 method_ingredient.add_config({

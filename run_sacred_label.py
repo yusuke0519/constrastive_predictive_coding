@@ -97,6 +97,7 @@ def label_predict(_config, _seed, _run):
         query = flatten_dict(query)
         extractor = MongoExtractor(None, _config['unsup_db_name'])
         # TODO: Should check whether the len(list) is one or not
+        # MEMO: It can be donw with inspect module.
         result = list(extractor.find(query, ['config', 'info'], False, 'COMPLETED'))
         assert len(result) == 1, "There are too many or no results. Please check the query {}".format(query)
         path = os.path.join(result['info']['log_dir'], 'model_{}.pth'.format(_config['optim']['num_batch']))
