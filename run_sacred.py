@@ -19,8 +19,9 @@ from torch import optim
 # original
 from datasets import OppG
 from opportunity import Encoder, ContextEncoder, Predictor
-from cpc import CPCModel
+from cpc import CPCModel, get_context
 from utils import CheckCompleteOption  # TODO: Find a way to avoid this import
+from divergence import CMD, pairwise_divergence
 
 
 def get_dataset(name, validation, test_domain, L, K):
@@ -199,6 +200,15 @@ def validate(dataset_joint, dataset_marginal, model, num_eval=10, batch_size=128
     return results
 
 
+def get_feature_of(g_enc, c_enc, L):
+    def _func(X):
+        if c_enc is None:
+            return g_enc(X[..., L-1])
+        else:
+            return get_context(X[..., :(L-1)], g_enc, c_enc)
+    return _func
+
+
 @ex.automain
 def CPC(_config, _seed, _run):
     """Train a model with configurations."""
@@ -239,21 +249,41 @@ def CPC(_config, _seed, _run):
     train_results = []
     valid_results = []
 
+    divergence_criterion = CMD(n_moments=5)
+    get_g_of = get_feature_of(model.g_enc, None, _config['dataset']['L'])
+    get_c_of = get_feature_of(model.g_enc, model.c_enc, _config['dataset']['L'])
     for num_iter in range(_config['optim']['num_batch']):
         loss = train_CPC(train_loader_joint, train_loader_marginal, model, optimizer)
         if (num_iter+1) % monitor_per != 0:
             continue
         print(num_iter+1, loss.item())
         train_result = validate(train_dataset_joint, train_dataset_marginal, model, num_eval=None)
+        train_result['cmdg'] = pairwise_divergence(
+            train_dataset_joint.datasets, get_g_of,
+            divergence_criterion
+        )
+        train_result['cmdc'] = pairwise_divergence(
+            train_dataset_joint.datasets, get_c_of,
+            divergence_criterion
+        )
         train_results.append(train_result)
         print("  train CPC: ", train_result)
         valid_result = validate(valid_dataset_joint, valid_dataset_marginal, model, num_eval=None)
         valid_results.append(valid_result)
+        valid_result['cmdg'] = pairwise_divergence(
+            valid_dataset_joint.datasets, get_g_of,
+            divergence_criterion
+        )
+        valid_result['cmdc'] = pairwise_divergence(
+            valid_dataset_joint.datasets, get_c_of,
+            divergence_criterion
+        )
         print("  valid CPC: ", valid_result)
         model_path = '{}/model_{}.pth'.format(log_dir, num_iter+1)
         torch.save(model.state_dict(), model_path)
         writer.add_scalars('train', train_result, num_iter+1)
         writer.add_scalars('valid', valid_result, num_iter+1)
+
         # NOTE: I decided to desable add artifact feature for the moment
         # Instead, one can retrieve the model information by simply load in accordance with info['log_dir']
         # ex.add_artifact(model_path, name='model_{}'.format(num_iter+1))

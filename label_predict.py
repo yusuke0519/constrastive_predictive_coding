@@ -216,15 +216,18 @@ def label_predict(
     test_results = []
     folder_name = '{}/{}/label_predict'.format(dataset_name, folder_name)
     os.makedirs(folder_name, exist_ok=True)
+    import time
+    start_time = time.time()
     for num_iter in range(num_batch):
         optimizer.zero_grad()
         X, Y = train_loader_joint.__iter__().__next__()
         y = Y[:, 0, L-1].long().cuda()
+        print(y.shape)
         pred_y = classifier(X[..., :L].float().cuda())
         loss = criterion(pred_y, y)
         loss.backward()
         optimizer.step()
-
+        print(time.time() - start_time)
         if ((num_iter + 1) % monitor_per) != 0:
             continue
         print(num_iter+1)
