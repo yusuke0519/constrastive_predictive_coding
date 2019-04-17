@@ -21,6 +21,7 @@ from datasets import OppG
 from opportunity import Encoder, ContextEncoder, Predictor
 from cpc import CPCModel, get_context
 from utils import CheckCompleteOption  # TODO: Find a way to avoid this import
+from utils import get_split_samplers, SplitBatchSampler
 from divergence import CMD, pairwise_divergence
 
 
@@ -61,7 +62,7 @@ def get_dataset(name, validation, test_domain, L, K):
     return train_dataset_joint, valid_dataset_joint, train_dataset_marginal, valid_dataset_marginal, test_dataset
 
 
-def get_model(input_shape, K, name, hidden, context, num_gru):
+def get_model(input_shape, K, name, hidden, context, num_gru, **kwargs):
     """Prepare cpc model for training.
 
     Parameter
@@ -110,6 +111,7 @@ method_ingredient.add_config({
     'hidden': 1600,
     'context': 200,
     'num_gru': 1,
+    'sampler_mode': 'random',
 })
 
 
@@ -231,10 +233,23 @@ def CPC(_config, _seed, _run):
 
     datasets = get_dataset(**_config['dataset'])
     train_dataset_joint, valid_dataset_joint, train_dataset_marginal, valid_dataset_marginal, _ = datasets
-    train_loader_joint = data.DataLoader(
-        train_dataset_joint, batch_size=_config['optim']['batch_size'], shuffle=True)
-    train_loader_marginal = data.DataLoader(
-        train_dataset_marginal, batch_size=_config['optim']['batch_size'], shuffle=True)
+    if _config['method']['sampler_mode'] == 'random':
+        print("Sample mode: Random")
+        train_loader_joint = data.DataLoader(
+            train_dataset_joint, batch_size=_config['optim']['batch_size'], shuffle=True)
+        train_loader_marginal = data.DataLoader(
+            train_dataset_marginal, batch_size=_config['optim']['batch_size'], shuffle=True)
+    elif _config['method']['sampler_mode'] == 'diff':
+        joint_sampler = get_split_samplers(train_dataset_joint, [0, 1, 2])
+        joint_batch_sampler = SplitBatchSampler(joint_sampler, _config['optim']['batch_size'], True)
+        train_loader_joint = data.DataLoader(train_dataset_joint, batch_sampler=joint_batch_sampler)
+
+        marginal_sampler = get_split_samplers(train_dataset_marginal, [1, 2, 0])
+        marginal_batch_sampler = SplitBatchSampler(marginal_sampler, _config['optim']['batch_size'], True)
+        train_loader_marginal = data.DataLoader(train_dataset_marginal, batch_sampler=marginal_batch_sampler)
+
+    else:
+        raise Exception()
     model = get_model(
         input_shape=train_dataset_joint.get('input_shape'), K=_config['dataset']['K'], **_config['method']
     )
@@ -299,9 +314,7 @@ def CPC(_config, _seed, _run):
 """Memo.
 
 #TODO
-* Sacred code for label prediction. Need both code and sacred option to manage that.
 * (Pending) Convert results we already done by main.py.
 * Enable to use various dataset.
 * Add VAE option for comparison.
-* Bug fix of CheckCompleteOption
 """
