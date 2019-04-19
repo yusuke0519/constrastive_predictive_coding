@@ -123,6 +123,12 @@ def label_predict(_config, _seed, _run):
     get_g_of = get_feature_of(model.g_enc, None, _config['dataset']['L'])
     get_c_of = get_feature_of(model.g_enc, model.c_enc, _config['dataset']['L'])
 
+    # early stopping
+    metric_names = ['test-accuracy', 'valid-accuracy']
+    best_values = dict(zip(metric_names, [0] * len(metric_names)))
+    patient = 10
+    counter = 0
+
     start_time = time.time()
     for num_iter in range(_config['classifier_optim']['num_batch']):
         optimizer.zero_grad()
@@ -134,7 +140,6 @@ def label_predict(_config, _seed, _run):
         optimizer.step()
         if ((num_iter + 1) % monitor_per) != 0:
             continue
-        print(time.time() - start_time)
         train_result = validate_label_prediction(classifier, train_dataset, L=L, nb_batch=None)
         valid_result = validate_label_prediction(classifier, valid_dataset, L=L, nb_batch=None)
         test_result = validate_label_prediction(classifier, test_dataset, L=L, nb_batch=None)
@@ -175,6 +180,27 @@ def label_predict(_config, _seed, _run):
         print('valid', ', '.join(['{}:{:.3f}'.format(k, v) for k, v in iteritems(valid_result)]))
         print('test', ', '.join(['{}:{:.3f}'.format(k, v) for k, v in iteritems(test_result)]))
         start_time = time.time()
+
+        # early stopping
+        is_better = False
+        for metric_name in metric_names:
+            db_name, metric = metric_name.split('-')
+            if db_name == 'valid':
+                current_value = valid_result[metric]
+            elif db_name == 'test':
+                current_value = test_result[metric]
+            if current_value >= best_values[metric_name]:
+                counter = 0
+                best_values[metric_name] = current_value
+                is_better = True
+        if is_better:
+            print("Update the best results", best_values)
+        else:
+            counter += 1
+            print("Not update the best results (counter={})".format(counter), best_values)
+
+        if counter == patient:
+            break
 
     # Post process
     result = writer.scalar_dict
