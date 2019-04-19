@@ -91,7 +91,12 @@ def verify_method(config, command_name, logger):
     assert config['method']['name'] in REGISTERD_METHOD, "Invalid method name {}".format(
             config['method']['name'])
 
-    # TODO: Delete all parameters not related to the specified method
+    if config['method']['name'] == 'CPC':
+        REGISTERED_PARAM = {
+            'sampler_mode': ['random', 'diff', 'same'],
+        }
+        for key, valid_list in iteritems(REGISTERED_PARAM):
+            assert config['method'][key] in valid_list, "Invalid {} {}".format(key, config['method'][key])
     return config
 
 
@@ -184,15 +189,15 @@ def validate(dataset_joint, dataset_marginal, model, num_eval=10, batch_size=128
 
         score_j_list, score_m_list = model(X_j, X_m, L, K)
         for k in range(K):
-            losses[k] += (-1.0 * torch.log(score_j_list[k]).mean() - torch.log(1-score_m_list[k]).mean()).item()
-            TP[k] += (score_j_list[k] > 0.5).sum()
-            TN[k] += (score_m_list[k] < 0.5).sum()
-            FP[k] += (score_m_list[k] > 0.5).sum()
-            FN[k] += (score_j_list[k] < 0.5).sum()
+            losses[k] += (-1.0 * torch.log(torch.clamp(score_j_list[k], min=1e-8)).mean()
+                          - torch.log(torch.clamp(1-score_m_list[k], min=1e-8)).mean()).item()
+            TP[k] += (score_j_list[k] > 0.5).sum().item()
+            TN[k] += (score_m_list[k] < 0.5).sum().item()
+            FP[k] += (score_m_list[k] > 0.5).sum().item()
+            FN[k] += (score_j_list[k] < 0.5).sum().item()
 
         if i+1 == num_eval:
             break
-
     results = OrderedDict()
     for k in range(K):
         results['loss-{}'.format(k)] = losses[k] / (2*(i+1))
