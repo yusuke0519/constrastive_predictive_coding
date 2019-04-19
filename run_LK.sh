@@ -18,8 +18,6 @@ cuda="CUDA_VISIBLE_DEVICES=$1 OMP_NUM_THREADS=8"
 
 zikkou() {
     eval $omp $base $1
-    eval $omp $base $1 'method.sampler_mode="diff"'
-    eval $omp $base $1 'method.sampler_mode="same"'
     
     eval $cuda $classify $1 $pre
     eval $cuda $classify $1 $fine
@@ -32,35 +30,16 @@ zikkou() {
     eval $cuda $classify $1 $supc
     eval $cuda $classify $1 $supg
     eval $cuda $classify $1 $supgc
-    
-    eval $cuda $classify $1 "classifier.hiddens='[400]'" $pre
-    eval $cuda $classify $1 "classifier.hiddens='[400]'" $fine
-    eval $cuda $classify $1 "classifier.hiddens='[400]'" $sup
-    eval $cuda $classify $1 "classifier.hiddens='[400]'" $prec
-    eval $cuda $classify $1 "classifier.hiddens='[400]'" $finec
-    eval $cuda $classify $1 "classifier.hiddens='[400]'" $supgc
-    
-    eval $cuda $classify $1 "method.sampler_mode='diff'" $pre
-    eval $cuda $classify $1 "method.sampler_mode='diff'" $fine
-    eval $cuda $classify $1 "method.sampler_mode='diff'" $prec
-    eval $cuda $classify $1 "method.sampler_mode='diff'" $finec
-    eval $cuda $classify $1 "method.sampler_mode='diff'" $fineg
-    eval $cuda $classify $1 "method.sampler_mode='diff'" $finegc
-    
-    eval $cuda $classify $1 "method.sampler_mode='same'" $pre
-    eval $cuda $classify $1 "method.sampler_mode='same'" $fine
-    eval $cuda $classify $1 "method.sampler_mode='same'" $prec
-    eval $cuda $classify $1 "method.sampler_mode='same'" $finec
-    eval $cuda $classify $1 "method.sampler_mode='same'" $fineg
-    eval $cuda $classify $1 "method.sampler_mode='same'" $finegc
 }
 # context size
-zikkou "method.hidden=1600 method.context=800"
-zikkou "method.hidden=1600 method.context=1600"
+zikkou "dataset.L=5"
+zikkou "dataset.L=9"
+zikkou "dataset.L=15"
 
 # hidden
-zikkou "method.hidden=800"
-zikkou "method.hidden=3200"
+zikkou "dataset.K=1"
+zikkou "dataset.K=3"
+zikkou "dataset.K=7"
 
 fin=$(date)
 echo "Start: $start"
