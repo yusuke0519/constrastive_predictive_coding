@@ -35,7 +35,7 @@ classifier_ingredient.add_config({
 classifier_optim_ingredient = Ingredient('classifier_optim')
 classifier_optim_ingredient.add_config({
     'lr': 0.001,
-    'num_batch': 10000,
+    'num_batch': 30000,
     'batch_size': 128,
     'monitor_per': 100,
 })
