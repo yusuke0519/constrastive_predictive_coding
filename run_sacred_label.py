@@ -105,10 +105,26 @@ def label_predict(_config, _seed, _run):
         result = list(extractor.find(query, ['config', 'info'], False, 'COMPLETED'))
         assert len(result) == 1, "There are too many or no results. Please check the query {}".format(query)
         result = result[0]
-        path = os.path.join(result['info']['log_dir'], 'model_{}.pth'.format(_config['optim']['num_batch']))
-        model = model.cpu()
-        model.load_state_dict(torch.load(path, map_location='cpu'))
-        model = model.cuda()
+        if _config['method']['name'] == 'CPC':
+            path = os.path.join(result['info']['log_dir'], 'model_{}.pth'.format(_config['optim']['num_batch']))
+            model = model.cpu()
+            model.load_state_dict(torch.load(path, map_location='cpu'))
+            model = model.cuda()
+
+        elif _config['method']['name'] == 'VAE':
+            path = os.path.join(result['info']['log_dir'], 'q_{}.pth'.format(_config['optim']['num_batch']))
+            # TODO: Need refactor
+            from run_sacred import Encoder, CPCModel
+            from vae import Inference
+            g_enc_size = _config['method']['hidden']
+            g_enc = Encoder(input_shape=train_dataset.get('input_shape'), hidden_size=None).cuda()
+            c_enc = model.c_enc
+            predictor = model.predictor
+            q = Inference(g_enc, network_output=g_enc.output_shape()[1], z_size=g_enc_size).cuda()
+            q.load_state_dict(torch.load(path))
+            g_enc = nn.Sequential(q.network, q.network_mu, nn.ReLU(True), nn.Dropout(0.5))
+            g_enc.output_shape = lambda: (None, g_enc_size)  # dummy function, may be there exists a better way
+            model = CPCModel(g_enc, c_enc, predictor).cuda()
     classifier = get_classifier(model, train_dataset.get('num_classes'), **_config['classifier'])
     print(classifier)
     # TODO: Select valid poarameter from dictionary

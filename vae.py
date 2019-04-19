@@ -145,7 +145,7 @@ class Inference(Normal):
         return {"loc": self.network_mu(h), "scale": F.softplus(self.network_sigma(h))}
 
 
-class Geneator(Normal):
+class Generator(Normal):
     def __init__(self, z_size, g_enc):
         super().__init__(cond_var=["z"], var=["x"], name="p")
         self.fc = nn.Linear(z_size, g_enc.output_shape()[1]).cuda()
@@ -172,7 +172,7 @@ def vae(datasets, g_enc_size, K, L, folder_name, num_batch=10000):
     print("Prepare models ...")
     g_enc = Encoder(input_shape=train_dataset_joint.get('input_shape'), hidden_size=None).cuda()
     q = Inference(g_enc, network_output=g_enc.output_shape()[1], z_size=g_enc_size).cuda()
-    p = Geneator(z_size=g_enc_size, g_enc=g_enc).cuda()
+    p = Generator(z_size=g_enc_size, g_enc=g_enc).cuda()
 
     # prior
     loc = torch.tensor(0.).cuda()

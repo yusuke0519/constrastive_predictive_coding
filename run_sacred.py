@@ -6,7 +6,6 @@ import datetime
 import random
 from collections import OrderedDict
 import numpy as np
-import pandas as pd
 from tensorboardX import SummaryWriter
 # sacred
 from sacred import Experiment
@@ -87,7 +86,7 @@ def verify_dataset(config, command_name, logger):
 
 def verify_method(config, command_name, logger):
     """Add assersion rules."""
-    REGISTERD_METHOD = ['CPC']
+    REGISTERD_METHOD = ['CPC', 'VAE']
     assert config['method']['name'] in REGISTERD_METHOD, "Invalid method name {}".format(
             config['method']['name'])
 
@@ -236,8 +235,9 @@ def CPC(_config, _seed, _run):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+    # Prepare datasets
     datasets = get_dataset(**_config['dataset'])
-    train_dataset_joint, valid_dataset_joint, train_dataset_marginal, valid_dataset_marginal, _ = datasets
+    train_dataset_joint, valid_dataset_joint, train_dataset_marginal, valid_dataset_marginal, test_dataset = datasets
     if _config['method']['sampler_mode'] == 'random':
         print("Sample mode: Random")
         train_loader_joint = data.DataLoader(
@@ -261,64 +261,97 @@ def CPC(_config, _seed, _run):
         marginal_sampler = get_split_samplers(train_dataset_marginal, [0, 1, 2])
         marginal_batch_sampler = SplitBatchSampler(marginal_sampler, _config['optim']['batch_size'], True)
         train_loader_marginal = data.DataLoader(train_dataset_marginal, batch_sampler=marginal_batch_sampler)
+    else:
+        raise Exception()
+    if _config['method']['name'] == 'CPC':
+        model = get_model(
+            input_shape=train_dataset_joint.get('input_shape'), K=_config['dataset']['K'], **_config['method']
+        )
+        # TODO: enable to select various optimization options
+        # optimizer = optim.Adam(model.parameters(), **_config['optim'])
+        optimizer = optim.Adam(model.parameters(), lr=_config['optim']['lr'])
+        print("----- Model information -----")
+        print(model)
+        print(optimizer)
+        print("----- ------")
+
+        divergence_criterion = CMD(n_moments=5)
+        get_g_of = get_feature_of(model.g_enc, None, _config['dataset']['L'])
+        get_c_of = get_feature_of(model.g_enc, model.c_enc, _config['dataset']['L'])
+        for num_iter in range(_config['optim']['num_batch']):
+            loss = train_CPC(train_loader_joint, train_loader_marginal, model, optimizer)
+            if (num_iter+1) % monitor_per != 0:
+                continue
+            print(num_iter+1, loss.item())
+            train_result = validate(train_dataset_joint, train_dataset_marginal, model, num_eval=None)
+            train_result['cmdg'] = pairwise_divergence(
+                train_dataset_joint.datasets, get_g_of,
+                divergence_criterion
+            )
+            train_result['cmdc'] = pairwise_divergence(
+                train_dataset_joint.datasets, get_c_of,
+                divergence_criterion
+            )
+            print("  train CPC: ", train_result)
+            valid_result = validate(valid_dataset_joint, valid_dataset_marginal, model, num_eval=None)
+            valid_result['cmdg'] = pairwise_divergence(
+                valid_dataset_joint.datasets, get_g_of,
+                divergence_criterion
+            )
+            valid_result['cmdc'] = pairwise_divergence(
+                valid_dataset_joint.datasets, get_c_of,
+                divergence_criterion
+            )
+            print("  valid CPC: ", valid_result)
+            model_path = '{}/model_{}.pth'.format(log_dir, num_iter+1)
+            torch.save(model.state_dict(), model_path)
+            writer.add_scalars('train', train_result, num_iter+1)
+            writer.add_scalars('valid', valid_result, num_iter+1)
+
+            # NOTE: I decided to desable add artifact feature for the moment
+            # Instead, one can retrieve the model information by simply load in accordance with info['log_dir']
+            # ex.add_artifact(model_path, name='model_{}'.format(num_iter+1))
+    elif _config['method']['name'] == 'VAE':
+        from vae import Inference, Generator, Normal, KullbackLeibler, VAE, validate
+        # Model parameters
+        print("Prepare models ...")
+        g_enc_size = _config['method']['hidden']
+        g_enc = Encoder(input_shape=train_dataset_joint.get('input_shape'), hidden_size=None).cuda()
+        q = Inference(g_enc, network_output=g_enc.output_shape()[1], z_size=g_enc_size).cuda()
+        p = Generator(z_size=g_enc_size, g_enc=g_enc).cuda()
+
+        # prior
+        loc = torch.tensor(0.).cuda()
+        scale = torch.tensor(1.).cuda()
+        prior = Normal(loc=loc, scale=scale, var=["z"], dim=g_enc_size, name="p_prior")
+        kl = KullbackLeibler(q, prior)
+        model = VAE(q, p, regularizer=kl, optimizer=optim.Adam, optimizer_params={"lr": _config['optim']['lr']})
+        print(model)
+
+        # train
+
+        for num_iter in range(_config['optim']['num_batch']):
+            x, _ = train_loader_joint.__iter__().__next__()
+            _ = model.train({"x": x[..., 0].float().cuda()})
+
+            if (num_iter+1) % monitor_per != 0:
+                continue
+            print(num_iter+1)
+            train_result = validate(train_dataset_joint, p, q, model, num_eval=None)
+            print("  train VAE: ", train_result)
+            valid_result = validate(valid_dataset_joint, p, q, model, num_eval=None)
+            print("  valid VAE: ", valid_result)
+            test_result = validate(test_dataset, p, q, model, num_eval=None)
+            print("  test VAE: ", test_result)
+            torch.save(p.state_dict(), '{}/p_{}.pth'.format(log_dir, num_iter+1))
+            torch.save(q.state_dict(), '{}/q_{}.pth'.format(log_dir, num_iter+1))
+            writer.add_scalars('train', train_result, num_iter+1)
+            writer.add_scalars('valid', valid_result, num_iter+1)
+            writer.add_scalars('test', test_result, num_iter+1)
 
     else:
         raise Exception()
-    model = get_model(
-        input_shape=train_dataset_joint.get('input_shape'), K=_config['dataset']['K'], **_config['method']
-    )
-    # TODO: enable to select various optimization options
-    # optimizer = optim.Adam(model.parameters(), **_config['optim'])
-    optimizer = optim.Adam(model.parameters(), lr=_config['optim']['lr'])
-    print("----- Model information -----")
-    print(model)
-    print(optimizer)
-    print("----- ------")
 
-    train_results = []
-    valid_results = []
-
-    divergence_criterion = CMD(n_moments=5)
-    get_g_of = get_feature_of(model.g_enc, None, _config['dataset']['L'])
-    get_c_of = get_feature_of(model.g_enc, model.c_enc, _config['dataset']['L'])
-    for num_iter in range(_config['optim']['num_batch']):
-        loss = train_CPC(train_loader_joint, train_loader_marginal, model, optimizer)
-        if (num_iter+1) % monitor_per != 0:
-            continue
-        print(num_iter+1, loss.item())
-        train_result = validate(train_dataset_joint, train_dataset_marginal, model, num_eval=None)
-        train_result['cmdg'] = pairwise_divergence(
-            train_dataset_joint.datasets, get_g_of,
-            divergence_criterion
-        )
-        train_result['cmdc'] = pairwise_divergence(
-            train_dataset_joint.datasets, get_c_of,
-            divergence_criterion
-        )
-        train_results.append(train_result)
-        print("  train CPC: ", train_result)
-        valid_result = validate(valid_dataset_joint, valid_dataset_marginal, model, num_eval=None)
-        valid_results.append(valid_result)
-        valid_result['cmdg'] = pairwise_divergence(
-            valid_dataset_joint.datasets, get_g_of,
-            divergence_criterion
-        )
-        valid_result['cmdc'] = pairwise_divergence(
-            valid_dataset_joint.datasets, get_c_of,
-            divergence_criterion
-        )
-        print("  valid CPC: ", valid_result)
-        model_path = '{}/model_{}.pth'.format(log_dir, num_iter+1)
-        torch.save(model.state_dict(), model_path)
-        writer.add_scalars('train', train_result, num_iter+1)
-        writer.add_scalars('valid', valid_result, num_iter+1)
-
-        # NOTE: I decided to desable add artifact feature for the moment
-        # Instead, one can retrieve the model information by simply load in accordance with info['log_dir']
-        # ex.add_artifact(model_path, name='model_{}'.format(num_iter+1))
-
-    train_results = pd.DataFrame(train_results)
-    valid_results = pd.DataFrame(valid_results)
     result = writer.scalar_dict
     for k, v in iteritems(result):
         ks = k.split('/')
