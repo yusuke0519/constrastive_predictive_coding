@@ -2,7 +2,7 @@ start=$(date)
 base="python run_sacred.py -x T with optim.lr=0.0001 seed=$2 gpu=$1 method.name='VAE'"
 omp="OMP_NUM_THREADS=4"
 
-classify="python run_sacred_label.py -x T with optim.lr=0.0001 seed=$2 gpu=$1"
+classify="python run_sacred_label.py -x T with optim.lr=0.0001 seed=$2 gpu=$1 method.name='VAE'"
 pre="classifier.pretrain=True classifier.finetune_g=False classifier.use_c_enc=False classifier.finetune_c=False"
 fine="classifier.pretrain=True classifier.finetune_g=True classifier.use_c_enc=False classifier.finetune_c=False"
 sup="classifier.pretrain=False classifier.finetune_g=True classifier.use_c_enc=False classifier.finetune_c=False"
