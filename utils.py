@@ -8,6 +8,9 @@ from sacred.observers import MongoObserver
 
 import numpy as np
 import torch.utils.data as data
+from torch.utils.data import Sampler, SubsetRandomSampler
+from torch._six import int_classes as _int_classes
+
 
 
 class Subset(data.Dataset):
@@ -167,3 +170,69 @@ def update_default_config(config_key, config_value, url=None, db_name=None):
     client = MongoClient(url)
     db = client[db_name]
     db.runs.update_many({config_key: {"$exists": False}}, {'$set': {config_key: config_value}})
+
+
+class SplitBatchSampler(Sampler):
+    r"""Wraps another sampler to yield a mini-batch of indices.
+
+    Args:
+        sampler (Sampler): Base sampler.
+        batch_size (int): Size of mini-batch.
+        drop_last (bool): If ``True``, the sampler will drop the last batch if
+            its size would be less than ``batch_size``
+
+    Example:
+        >>> list(BatchSampler(SequentialSampler(range(10)), batch_size=3, drop_last=False))
+        [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9]]
+        >>> list(BatchSampler(SequentialSampler(range(10)), batch_size=3, drop_last=True))
+        [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
+    """
+
+    def __init__(self, sampler, batch_size, drop_last):
+        for _sampler in sampler:
+            if not isinstance(_sampler, Sampler):
+                raise ValueError("sampler should be an instance of "
+                                 "torch.utils.data.Sampler, but got sampler={}"
+                                 .format(_sampler))
+        if not isinstance(batch_size, _int_classes) or isinstance(batch_size, bool) or \
+                batch_size <= 0:
+            raise ValueError("batch_size should be a positive integeral value, "
+                             "but got batch_size={}".format(batch_size))
+        if not isinstance(drop_last, bool):
+            raise ValueError("drop_last should be a boolean value, but got "
+                             "drop_last={}".format(drop_last))
+        self.sampler = sampler
+        self.num_sampler = len(sampler)
+        self.which_sampler = [int(batch_size/self.num_sampler*(i+1)) for i in range(self.num_sampler)]
+        self.batch_size = batch_size
+        self.drop_last = drop_last
+
+    def __iter__(self):
+        batch = []
+        sampler_idx = 0
+        
+        for i in range(self.batch_size):
+            idx = self.sampler[sampler_idx].__iter__().__next__()
+            batch.append(idx)
+            if len(batch) == self.which_sampler[sampler_idx]:
+                sampler_idx += 1
+            if len(batch) == self.batch_size:
+                yield batch
+                batch = []
+        if len(batch) > 0 and not self.drop_last:
+            yield batch
+
+    def __len__(self):
+        if self.drop_last:
+            return len(self.sampler) // self.batch_size
+        else:
+            return (len(self.sampler) + self.batch_size - 1) // self.batch_size
+
+
+def get_split_samplers(dataset, ids):
+    assert len(dataset.datasets) == len(ids)
+    size = [0] + dataset.cummulative_sizes
+    sampler = []
+    for i in ids:
+        sampler.append(SubsetRandomSampler(range(size[i], size[i+1])))
+    return sampler

@@ -109,7 +109,7 @@ method_ingredient = Ingredient('method')
 method_ingredient.add_config({
     'name': 'CPC',
     'hidden': 1600,
-    'context': 200,
+    'context': 800,
     'num_gru': 1,
     'sampler_mode': 'random',
 })
@@ -245,6 +245,15 @@ def CPC(_config, _seed, _run):
         train_loader_joint = data.DataLoader(train_dataset_joint, batch_sampler=joint_batch_sampler)
 
         marginal_sampler = get_split_samplers(train_dataset_marginal, [1, 2, 0])
+        marginal_batch_sampler = SplitBatchSampler(marginal_sampler, _config['optim']['batch_size'], True)
+        train_loader_marginal = data.DataLoader(train_dataset_marginal, batch_sampler=marginal_batch_sampler)
+
+    elif _config['method']['sampler_mode'] == 'same':
+        joint_sampler = get_split_samplers(train_dataset_joint, [0, 1, 2])
+        joint_batch_sampler = SplitBatchSampler(joint_sampler, _config['optim']['batch_size'], True)
+        train_loader_joint = data.DataLoader(train_dataset_joint, batch_sampler=joint_batch_sampler)
+
+        marginal_sampler = get_split_samplers(train_dataset_marginal, [0, 1, 2])
         marginal_batch_sampler = SplitBatchSampler(marginal_sampler, _config['optim']['batch_size'], True)
         train_loader_marginal = data.DataLoader(train_dataset_marginal, batch_sampler=marginal_batch_sampler)
 

@@ -29,6 +29,7 @@ classifier_ingredient.add_config({
     'finetune_g': False,
     'use_c_enc': False,
     'finetune_c': False,
+    'hiddens': None,
 })
 
 classifier_optim_ingredient = Ingredient('classifier_optim')
@@ -40,15 +41,15 @@ classifier_optim_ingredient.add_config({
 })
 
 
-def get_classifier(model, num_classes, finetune_g, use_c_enc, finetune_c, **kwargs):
+def get_classifier(model, num_classes, finetune_g, use_c_enc, finetune_c, hiddens, **kwargs):
     if use_c_enc:
         classifier = Classifier(
             num_classes=num_classes,
-            g_enc=model.g_enc, c_enc=model.c_enc, finetune_g=finetune_g, finetune_c=finetune_c).cuda()
+            g_enc=model.g_enc, c_enc=model.c_enc, finetune_g=finetune_g, finetune_c=finetune_c, hiddens=hiddens).cuda()
     else:
         classifier = Classifier(
             num_classes=num_classes,
-            g_enc=model.g_enc, finetune_g=finetune_g).cuda()
+            g_enc=model.g_enc, finetune_g=finetune_g, hiddens=hiddens).cuda()
     return classifier
 
 

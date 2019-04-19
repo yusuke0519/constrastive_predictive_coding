@@ -74,7 +74,6 @@ CONFIG['column_names'] = 'challenge_column_names.txt'
 CONFIG['label_legend'] = 'challenge_label_legend.txt'
 
 
-
 class _SingleUserSingleADL(data.Dataset):
     path = CONFIG['out']
     all_domain_key = ['S1', 'S2', 'S3', 'S4']
