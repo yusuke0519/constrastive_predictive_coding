@@ -303,14 +303,14 @@ def CPC(_config, _seed, _run):
                 divergence_criterion
             )
             print("  valid CPC: ", valid_result)
-            model_path = '{}/model_{}.pth'.format(log_dir, num_iter+1)
-            torch.save(model.state_dict(), model_path)
             writer.add_scalars('train', train_result, num_iter+1)
             writer.add_scalars('valid', valid_result, num_iter+1)
 
             # NOTE: I decided to desable add artifact feature for the moment
             # Instead, one can retrieve the model information by simply load in accordance with info['log_dir']
             # ex.add_artifact(model_path, name='model_{}'.format(num_iter+1))
+        model_path = '{}/model_{}.pth'.format(log_dir, num_iter+1)
+        torch.save(model.state_dict(), model_path)
     elif _config['method']['name'] == 'VAE':
         from vae import Inference, Generator, Normal, KullbackLeibler, VAE, validate
         # Model parameters
@@ -343,12 +343,12 @@ def CPC(_config, _seed, _run):
             print("  valid VAE: ", valid_result)
             test_result = validate(test_dataset, p, q, model, num_eval=None)
             print("  test VAE: ", test_result)
-            torch.save(p.state_dict(), '{}/p_{}.pth'.format(log_dir, num_iter+1))
-            torch.save(q.state_dict(), '{}/q_{}.pth'.format(log_dir, num_iter+1))
             writer.add_scalars('train', train_result, num_iter+1)
             writer.add_scalars('valid', valid_result, num_iter+1)
             writer.add_scalars('test', test_result, num_iter+1)
 
+        torch.save(p.state_dict(), '{}/p_{}.pth'.format(log_dir, num_iter+1))
+        torch.save(q.state_dict(), '{}/q_{}.pth'.format(log_dir, num_iter+1))
     else:
         raise Exception()
 
