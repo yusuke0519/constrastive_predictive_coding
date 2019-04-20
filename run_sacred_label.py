@@ -184,8 +184,8 @@ def label_predict(_config, _seed, _run):
             [valid_dataset, test_dataset], get_c_of,
             divergence_criterion, num_batch=None, batch_size=128
         )
-        model_path = '{}/model_{}.pth'.format(log_dir, num_iter+1)
-        torch.save(model.state_dict(), model_path)
+        # model_path = '{}/model_{}.pth'.format(log_dir, num_iter+1)
+        # torch.save(model.state_dict(), model_path)
         writer.add_scalars('train', train_result, num_iter+1)
         writer.add_scalars('valid', valid_result, num_iter+1)
         writer.add_scalars('test', test_result, num_iter+1)
