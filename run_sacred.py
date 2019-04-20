@@ -22,6 +22,8 @@ from cpc import CPCModel, get_context
 from utils import CheckCompleteOption  # TODO: Find a way to avoid this import
 from utils import get_split_samplers, SplitBatchSampler
 from divergence import CMD, pairwise_divergence
+from vae import Inference, Generator, Normal, KullbackLeibler, VAE
+from vae import validate as validate_vae
 
 
 def get_dataset(name, validation, test_domain, L, K):
@@ -312,7 +314,6 @@ def CPC(_config, _seed, _run):
         model_path = '{}/model_{}.pth'.format(log_dir, num_iter+1)
         torch.save(model.state_dict(), model_path)
     elif _config['method']['name'] == 'VAE':
-        from vae import Inference, Generator, Normal, KullbackLeibler, VAE, validate
         # Model parameters
         print("Prepare models ...")
         g_enc_size = _config['method']['hidden']
@@ -337,11 +338,11 @@ def CPC(_config, _seed, _run):
             if (num_iter+1) % monitor_per != 0:
                 continue
             print(num_iter+1)
-            train_result = validate(train_dataset_joint, p, q, model, num_eval=None)
+            train_result = validate_vae(train_dataset_joint, p, q, model, num_eval=None)
             print("  train VAE: ", train_result)
-            valid_result = validate(valid_dataset_joint, p, q, model, num_eval=None)
+            valid_result = validate_vae(valid_dataset_joint, p, q, model, num_eval=None)
             print("  valid VAE: ", valid_result)
-            test_result = validate(test_dataset, p, q, model, num_eval=None)
+            test_result = validate_vae(test_dataset, p, q, model, num_eval=None)
             print("  test VAE: ", test_result)
             writer.add_scalars('train', train_result, num_iter+1)
             writer.add_scalars('valid', valid_result, num_iter+1)
