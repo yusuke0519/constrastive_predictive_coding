@@ -120,8 +120,9 @@ def label_predict(_config, _seed, _run):
             g_enc = Encoder(input_shape=train_dataset.get('input_shape'), hidden_size=None).cuda()
             c_enc = model.c_enc
             predictor = model.predictor
-            q = Inference(g_enc, network_output=g_enc.output_shape()[1], z_size=g_enc_size).cuda()
-            q.load_state_dict(torch.load(path))
+            q = Inference(g_enc, network_output=g_enc.output_shape()[1], z_size=g_enc_size)
+            q.load_state_dict(torch.load(path, map_location='cpu'))
+            q = q.cuda()
             g_enc = nn.Sequential(q.network, q.network_mu, nn.ReLU(True), nn.Dropout(0.5))
             g_enc.output_shape = lambda: (None, g_enc_size)  # dummy function, may be there exists a better way
             model = CPCModel(g_enc, c_enc, predictor).cuda()
