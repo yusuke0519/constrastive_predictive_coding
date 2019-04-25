@@ -29,13 +29,13 @@ zikkou() {
     eval $cuda $classify $1 "classifier.hiddens='[400]'" $finec
     eval $cuda $classify $1 "classifier.hiddens='[400]'" $finegc
 }
-# context size
-zikkou "method.hidden=1600 method.context=800"
-zikkou "method.hidden=1600 method.context=1600"
-
 # hidden
+zikkou "method.hidden=400"
 zikkou "method.hidden=800"
+zikkou "method.hidden=1600"
 zikkou "method.hidden=3200"
+# hidden
+zikkou "optim.num_batch=30000"
 
 fin=$(date)
 echo "Start: $start"
