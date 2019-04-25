@@ -19,6 +19,8 @@ from run_sacred import data_ingredient, method_ingredient, optim_ingredient, get
 from sacred import Experiment, Ingredient
 from sacred_wrap import MongoExtractor
 
+from utils import get_split_samplers, SplitBatchSampler
+from utils import get_split_datasets
 from utils import flatten_dict
 from divergence import CMD, pairwise_divergence
 
@@ -30,6 +32,8 @@ classifier_ingredient.add_config({
     'use_c_enc': False,
     'finetune_c': False,
     'hiddens': None,
+    'auxiliary': 0.0,
+    'label_size': 1.0,
 })
 
 classifier_optim_ingredient = Ingredient('classifier_optim')
@@ -86,11 +90,44 @@ def label_predict(_config, _seed, _run):
     writer = SummaryWriter(log_dir)
 
     # load datasets and build model
-    train_dataset, valid_dataset, _, _, test_dataset = get_dataset(**_config['dataset'])
-    train_loader = data.DataLoader(train_dataset, batch_size=_config['classifier_optim']['batch_size'], shuffle=True)
+    datasets = get_dataset(**_config['dataset'])
+    train_dataset_joint, valid_dataset_joint, train_dataset_marginal, valid_dataset_marginal, test_dataset = datasets
+
+    if _config['classifier']['label_size'] < 1.0:
+        # train_unsup_dataset_joint = train_dataset_joint
+        train_dataset_joint, _ = get_split_datasets(
+            train_dataset_joint, split_size=_config['classifier']['label_size'])
+        train_dataset_marginal, _ = get_split_datasets(
+            train_dataset_marginal, split_size=_config['classifier']['label_size'])
+
+    if _config['method']['sampler_mode'] == 'random':
+        print("Sample mode: Random")
+        train_loader_joint = data.DataLoader(
+            train_dataset_joint, batch_size=_config['optim']['batch_size'], shuffle=True)
+        train_loader_marginal = data.DataLoader(
+            train_dataset_marginal, batch_size=_config['optim']['batch_size'], shuffle=True)
+
+    elif _config['method']['sampler_mode'] == 'diff':
+        joint_sampler = get_split_samplers(train_dataset_joint, [0, 1, 2])
+        joint_batch_sampler = SplitBatchSampler(joint_sampler, _config['optim']['batch_size'], True)
+        train_loader_joint = data.DataLoader(train_dataset_joint, batch_sampler=joint_batch_sampler)
+
+        marginal_sampler = get_split_samplers(train_dataset_marginal, [1, 2, 0])
+        marginal_batch_sampler = SplitBatchSampler(marginal_sampler, _config['optim']['batch_size'], True)
+        train_loader_marginal = data.DataLoader(train_dataset_marginal, batch_sampler=marginal_batch_sampler)
+
+    elif _config['method']['sampler_mode'] == 'same':
+        joint_sampler = get_split_samplers(train_dataset_joint, [0, 1, 2])
+        joint_batch_sampler = SplitBatchSampler(joint_sampler, _config['optim']['batch_size'], True)
+        train_loader_joint = data.DataLoader(train_dataset_joint, batch_sampler=joint_batch_sampler)
+
+        marginal_sampler = get_split_samplers(train_dataset_marginal, [0, 1, 2])
+        marginal_batch_sampler = SplitBatchSampler(marginal_sampler, _config['optim']['batch_size'], True)
+        train_loader_marginal = data.DataLoader(train_dataset_marginal, batch_sampler=marginal_batch_sampler)
     print("Dataset: {} train, {} valid, {} test".format(
-        len(train_dataset), len(valid_dataset), len(test_dataset)))
-    model = get_model(input_shape=train_dataset.get('input_shape'), K=_config['dataset']['K'], **_config['method'])
+        len(train_dataset_joint), len(valid_dataset_joint), len(test_dataset)))
+    model = get_model(
+        input_shape=train_dataset_joint.get('input_shape'), K=_config['dataset']['K'], **_config['method'])
 
     if _config['classifier']['pretrain']:
         query = deepcopy(_config)
@@ -101,7 +138,6 @@ def label_predict(_config, _seed, _run):
         del query['unsup_db_name']
         query = flatten_dict(query)
         extractor = MongoExtractor(None, _config['unsup_db_name'])
-        # TODO: Should check whether the len(list) is one or not
         result = list(extractor.find(query, ['config', 'info'], False, 'COMPLETED'))
         assert len(result) == 1, "There are too many or no results. Please check the query {}".format(query)
         result = result[0]
@@ -117,7 +153,7 @@ def label_predict(_config, _seed, _run):
             from run_sacred import Encoder, CPCModel
             from vae import Inference
             g_enc_size = _config['method']['hidden']
-            g_enc = Encoder(input_shape=train_dataset.get('input_shape'), hidden_size=None).cuda()
+            g_enc = Encoder(input_shape=train_dataset_joint.get('input_shape'), hidden_size=None).cuda()
             c_enc = model.c_enc
             predictor = model.predictor
             q = Inference(g_enc, network_output=g_enc.output_shape()[1], z_size=g_enc_size)
@@ -126,7 +162,7 @@ def label_predict(_config, _seed, _run):
             g_enc = nn.Sequential(q.network, q.network_mu, nn.ReLU(True), nn.Dropout(0.5))
             g_enc.output_shape = lambda: (None, g_enc_size)  # dummy function, may be there exists a better way
             model = CPCModel(g_enc, c_enc, predictor).cuda()
-    classifier = get_classifier(model, train_dataset.get('num_classes'), **_config['classifier'])
+    classifier = get_classifier(model, train_dataset_joint.get('num_classes'), **_config['classifier'])
     print(classifier)
     # TODO: Select valid poarameter from dictionary
     # MEMO: It can be donw with inspect module.
@@ -149,40 +185,49 @@ def label_predict(_config, _seed, _run):
     start_time = time.time()
     for num_iter in range(_config['classifier_optim']['num_batch']):
         optimizer.zero_grad()
-        X, Y = train_loader.__iter__().__next__()
+        X, Y = train_loader_joint.__iter__().__next__()
         y = Y[:, 0, L-1].long().cuda()
         pred_y = classifier(X[..., :L].float().cuda())
+
         loss = criterion(pred_y, y)
+        if _config['classifier']['auxiliary'] != 0.0:
+            assert _config['method']['name'] == 'CPC'
+            aux_criterion = nn.BCELoss()
+            X_m, _ = train_loader_marginal.__iter__().__next__()
+            K = X_m.shape[-1]
+            L = X.shape[-1] - K
+            X = X.float().cuda()
+            X_m = X_m.float().cuda()
+            score_j_list, score_m_list = model(X, X_m, L, K)
+            _loss = 0
+            for score_j, score_m in zip(score_j_list, score_m_list):
+                _loss += aux_criterion(score_j, torch.ones((len(score_j), 1)).cuda())
+                _loss += aux_criterion(score_m, torch.zeros((len(score_j), 1)).cuda())
+            _loss = _loss / (2*K)
+            loss += _config['classifier']['auxiliary'] * _loss
         loss.backward()
         optimizer.step()
         if ((num_iter + 1) % monitor_per) != 0:
             continue
-        train_result = validate_label_prediction(classifier, train_dataset, L=L, nb_batch=None)
-        valid_result = validate_label_prediction(classifier, valid_dataset, L=L, nb_batch=None)
+        train_result = validate_label_prediction(classifier, train_dataset_joint, L=L, nb_batch=None)
+        valid_result = validate_label_prediction(classifier, valid_dataset_joint, L=L, nb_batch=None)
         test_result = validate_label_prediction(classifier, test_dataset, L=L, nb_batch=None)
         elapsed_time_before_cmd = time.time() - start_time
-        # train_result['cmdg'] = pairwise_divergence(
-        #     train_dataset.datasets, get_g_of,
-        #     divergence_criterion, num_batch=None, batch_size=1280
-        # )
-        # train_result['cmdc'] = pairwise_divergence(
-        #     train_dataset.datasets, get_c_of,
-        #     divergence_criterion, num_batch=None, batch_size=1280
-        # )
+
         valid_result['cmdg'] = pairwise_divergence(
-            valid_dataset.datasets, get_g_of,
+            valid_dataset_joint.datasets, get_g_of,
             divergence_criterion, num_batch=None, batch_size=128
         )
         valid_result['cmdc'] = pairwise_divergence(
-            valid_dataset.datasets, get_c_of,
+            valid_dataset_joint.datasets, get_c_of,
             divergence_criterion, num_batch=None, batch_size=128
         )
         test_result['cmdg'] = pairwise_divergence(
-            [valid_dataset, test_dataset], get_g_of,
+            [valid_dataset_joint, test_dataset], get_g_of,
             divergence_criterion, num_batch=None, batch_size=128
         )
         test_result['cmdc'] = pairwise_divergence(
-            [valid_dataset, test_dataset], get_c_of,
+            [valid_dataset_joint, test_dataset], get_c_of,
             divergence_criterion, num_batch=None, batch_size=128
         )
         # model_path = '{}/model_{}.pth'.format(log_dir, num_iter+1)

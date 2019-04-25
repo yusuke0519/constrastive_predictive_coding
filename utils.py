@@ -25,7 +25,7 @@ class Subset(data.Dataset):
         return len(self.indices)
 
 
-def split_dataset(dataset, train_size=0.9, shuffle=False, drop_first=True):
+def _split_dataset(dataset, train_size=0.9, shuffle=False, drop_first=True):
     """Split dataet into train and valid dataset.
 
     Parameter
@@ -51,6 +51,23 @@ def split_dataset(dataset, train_size=0.9, shuffle=False, drop_first=True):
     train_dataset = Subset(dataset, idx_train)
     valid_dataset = Subset(dataset, idx_valid)
     return train_dataset, valid_dataset
+
+
+def get_split_datasets(dataset, split_size):
+    datasets1 = []
+    datasets2 = []
+    dataset_class = dataset.__class__
+    domain_keys = dataset.domain_keys
+
+    for domain_key in domain_keys:
+        single_dataset = dataset.get_single_dataset(domain_key, **dataset.domain_specific_params())
+        dataset1, dataset2 = _split_dataset(single_dataset, split_size, shuffle=True, drop_first=False)
+        datasets1.append(dataset1)
+        datasets2.append(dataset2)
+
+    datasets1 = dataset_class(domain_keys=domain_keys, datasets=datasets1, **dataset.domain_specific_params())
+    datasets2 = dataset_class(domain_keys=domain_keys, datasets=datasets2, **dataset.domain_specific_params())
+    return datasets1, datasets2
 
 
 # # -*- coding: utf-8 -*-

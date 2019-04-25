@@ -37,8 +37,16 @@ zikkou() {
     eval $cuda $classify $1 "classifier.hiddens='[400]'" $fine
     eval $cuda $classify $1 "classifier.hiddens='[400]'" $sup
     eval $cuda $classify $1 "classifier.hiddens='[400]'" $prec
-    eval $cuda $classify $1 "classifier.hiddens='[400]'" $finec
+    eval $cuda $classify $1 "classifier.hiddens='[400]'" $finegc
     eval $cuda $classify $1 "classifier.hiddens='[400]'" $supgc
+    
+    eval $cuda $classify $1 "method.sampler_mode='same'" "classifier.hiddens='[400]'" $pre
+    eval $cuda $classify $1 "method.sampler_mode='same'" "classifier.hiddens='[400]'" $fine
+    eval $cuda $classify $1 "method.sampler_mode='same'" "classifier.hiddens='[400]'" $sup
+    eval $cuda $classify $1 "method.sampler_mode='same'" "classifier.hiddens='[400]'" $prec
+    eval $cuda $classify $1 "method.sampler_mode='same'" "classifier.hiddens='[400]'" $finegc
+    eval $cuda $classify $1 "method.sampler_mode='same'" "classifier.hiddens='[400]'" $supgc
+    
     
     eval $cuda $classify $1 "method.sampler_mode='diff'" $pre
     eval $cuda $classify $1 "method.sampler_mode='diff'" $fine
