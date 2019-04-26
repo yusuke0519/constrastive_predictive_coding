@@ -49,6 +49,23 @@ class CPCModel(nn.Module):
         self.c_enc = c_enc
         self.predictor = predictor
 
+    def get_context(self, X):
+        return get_context(X, self.g_enc, self.c_enc)
+
+    def get_score_of(self, X, K, predictions):
+        score = [None] * K
+        for i in range(K):
+            z = self.g_enc(X[..., i])
+            score[i] = torch.bmm(z.unsqueeze(1), predictions[i].unsqueeze(2)).squeeze(2)
+        return score
+
+    def get_predictions(self, c, K):
+        predictions = [None] * K
+        for i in range(K):
+            predictions[i] = self.predictor(c, i)
+
+        return predictions
+
     def forward(self, X_j, X_m, L, K):
         """Return probability that X comes from joint distributions.
 
@@ -63,13 +80,14 @@ class CPCModel(nn.Module):
         K : int
             Predict size
         """
-        c = get_context(X_j[..., :L], self.g_enc, self.c_enc)
-        score_j = [None] * K
-        score_m = [None] * K
-        for i in range(K):
-            z_j = self.g_enc(X_j[..., L+i])
-            z_m = self.g_enc(X_m[..., i])
-            z_p = self.predictor(c, i)
-            score_j[i] = torch.sigmoid(torch.bmm(z_j.unsqueeze(1), z_p.unsqueeze(2)).squeeze(2))
-            score_m[i] = torch.sigmoid(torch.bmm(z_m.unsqueeze(1), z_p.unsqueeze(2)).squeeze(2))
+        c = self.get_context(X_j[..., :L])
+        predictions = self.get_predictions(c, K)
+        score_j = self.get_score_of(X_j[..., L:], K, predictions)
+        if isinstance(X_m, list):
+            score_m = [None] * len(X_m)
+            for i, X in enumerate(X_m):
+                score_m[i] = self.get_score_of(X, K, predictions)
+        else:
+            score_m = self.get_score_of(X_m, K, predictions)
+
         return score_j, score_m
