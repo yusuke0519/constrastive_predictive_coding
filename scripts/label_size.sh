@@ -23,7 +23,9 @@ zikkou() {
     eval $cuda $classify $1 $2 "method.sampler_mode='same'" $fine
     eval $cuda $classify $1 $2 "method.sampler_mode='same'" $sup
     eval $cuda $classify $1 $2 "method.sampler_mode='same'" $prec
+    eval $cuda $classify $1 $2 "method.sampler_mode='same'" $finec
     eval $cuda $classify $1 $2 "method.sampler_mode='same'" $finegc
+    eval $cuda $classify $1 $2 "method.sampler_mode='same'" $supc
     eval $cuda $classify $1 $2 "method.sampler_mode='same'" $supgc
     
     eval $cuda $classify $1 $2 "method.sampler_mode='same' classifier.hiddens='[400]'" $pre
@@ -37,6 +39,7 @@ zikkou() {
 zikkou "method.hidden=1600 method.context=800" "classifier.label_size=0.1"
 zikkou "method.hidden=1600 method.context=800" "classifier.label_size=0.2"
 zikkou "method.hidden=1600 method.context=800" "classifier.label_size=0.4"
+zikkou "method.hidden=1600 method.context=800" "classifier.label_size=1.0"
 
 # hidden
 

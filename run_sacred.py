@@ -74,7 +74,7 @@ def get_model(input_shape, K, name, hidden, context, num_gru, **kwargs):
     g_enc = Encoder(input_shape=input_shape, hidden_size=hidden).cuda()
     c_enc = ContextEncoder(input_shape=g_enc.output_shape(), num_layers=num_gru, hidden_size=context).cuda()
     predictor = Predictor((None, c_enc.hidden_size), g_enc.output_shape()[1], max_steps=K).cuda()
-    model = CPCModel(g_enc, c_enc, predictor).cuda()
+    model = CPCModel(g_enc, c_enc, predictor, p=kwargs['mask_size'], num_mask=kwargs['num_mask']).cuda()
     return model
 
 
@@ -119,7 +119,9 @@ method_ingredient.add_config({
     'num_gru': 1,
     'sampler_mode': 'random',
     'num_negative': 1,
-    'cont_type': 'sigmoid'
+    'cont_type': 'sigmoid',
+    'mask_size': 1.0,
+    'num_mask': 1
 })
 
 

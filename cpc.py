@@ -34,7 +34,7 @@ class CPCModel(nn.Module):
 
     """
 
-    def __init__(self, g_enc, c_enc, predictor):
+    def __init__(self, g_enc, c_enc, predictor, p=1.0, num_mask=1):
         """Initialize.
 
         Parameter
@@ -48,15 +48,24 @@ class CPCModel(nn.Module):
         self.g_enc = g_enc
         self.c_enc = c_enc
         self.predictor = predictor
+        self.p = p
+        self.num_mask = num_mask
+        if self.p == 1.0:
+            assert num_mask == 1
 
     def get_context(self, X):
         return get_context(X, self.g_enc, self.c_enc)
 
-    def get_score_of(self, X, K, predictions):
-        score = [None] * K
+    def get_score_of(self, X, K, predictions, masks=None):
+        score = [0] * K
         for i in range(K):
             z = self.g_enc(X[..., i])
-            score[i] = torch.bmm(z.unsqueeze(1), predictions[i].unsqueeze(2)).squeeze(2)
+            if masks is None:
+                z_p = predictions[i]
+                score[i] += torch.bmm(z.unsqueeze(1), z_p.unsqueeze(2)).squeeze(2)
+            for mask in masks:
+                z_p = 1/self.p * (mask * predictions[i])
+                score[i] += 1.0/self.num_mask * torch.bmm(z.unsqueeze(1), z_p.unsqueeze(2)).squeeze(2)
         return score
 
     def get_predictions(self, c, K):
@@ -65,6 +74,9 @@ class CPCModel(nn.Module):
             predictions[i] = self.predictor(c, i)
 
         return predictions
+
+    def _get_masks(self, z):
+        return [torch.bernoulli(z.data.new(z.data.size()).fill_(self.p)) for _ in range(self.num_mask)]
 
     def forward(self, X_j, X_m, L, K):
         """Return probability that X comes from joint distributions.
@@ -82,12 +94,13 @@ class CPCModel(nn.Module):
         """
         c = self.get_context(X_j[..., :L])
         predictions = self.get_predictions(c, K)
-        score_j = self.get_score_of(X_j[..., L:], K, predictions)
+        masks = self._get_masks(predictions[0])
+        score_j = self.get_score_of(X_j[..., L:], K, predictions, masks)
         if isinstance(X_m, list):
             score_m = [None] * len(X_m)
             for i, X in enumerate(X_m):
-                score_m[i] = self.get_score_of(X, K, predictions)
+                score_m[i] = self.get_score_of(X, K, predictions, masks)
         else:
-            score_m = self.get_score_of(X_m, K, predictions)
+            score_m = self.get_score_of(X_m, K, predictions, masks)
 
         return score_j, score_m
