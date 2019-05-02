@@ -121,7 +121,8 @@ method_ingredient.add_config({
     'num_negative': 1,
     'cont_type': 'sigmoid',
     'mask_size': 1.0,
-    'num_mask': 1
+    'num_mask': 1,
+    'num_spy_mask': 0
 })
 
 
