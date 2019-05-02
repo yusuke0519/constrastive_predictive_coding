@@ -82,7 +82,7 @@ class Classifier(nn.Module):
         return parameters
 
 
-def validate_label_prediction(classifier, dataset, L, batch_size=128, nb_batch=None):
+def validate_label_prediction(classifier, dataset, L, batch_size=64, nb_batch=None):
     loader = data.DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
     if nb_batch is None:
         nb_batch = len(loader)

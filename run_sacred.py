@@ -187,7 +187,7 @@ def train_CPC(joint_loader, marginal_loader, model, optimizer, num_negative):
     return loss
 
 
-def validate(dataset_joint, dataset_marginal, model, num_eval=10, batch_size=128):
+def validate(dataset_joint, dataset_marginal, model, num_eval=10, batch_size=64):
     """Evaluate the model."""
     model.eval()
 
