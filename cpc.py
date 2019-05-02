@@ -57,6 +57,21 @@ class CPCModel(nn.Module):
         return get_context(X, self.g_enc, self.c_enc)
 
     def get_score_of(self, X, K, predictions, masks=None):
+        """Return score based on predictions ans masks.
+
+        Parameter
+        ---------
+        X : torch.Tensor
+        K : int
+          #score (length of the predicting future)
+        predictions : list of torch.Tensor (same size with self.g_enc(X))
+        masks : list of torch.BoolTensor
+
+        Return
+        ------
+        score : list of torch.Tensor
+            each element contains score for i-th future
+        """
         score = [0] * K
         for i in range(K):
             z = self.g_enc(X[..., i])
