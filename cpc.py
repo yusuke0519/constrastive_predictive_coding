@@ -34,7 +34,7 @@ class CPCModel(nn.Module):
 
     """
 
-    def __init__(self, g_enc, c_enc, predictor, p=1.0, num_mask=1):
+    def __init__(self, g_enc, c_enc, predictor, p=1.0, num_mask=1, num_spy_mask=0):
         """Initialize.
 
         Parameter
@@ -49,9 +49,11 @@ class CPCModel(nn.Module):
         self.c_enc = c_enc
         self.predictor = predictor
         self.p = p
-        self.num_mask = num_mask
         if self.p == 1.0:
             assert num_mask == 1
+        self.num_spy_mask = num_spy_mask
+        if self.num_spy_mask == 0:
+            assert p < 1.0 and 0.0 < p
 
     def get_context(self, X):
         return get_context(X, self.g_enc, self.c_enc)
@@ -75,8 +77,8 @@ class CPCModel(nn.Module):
 
         return predictions
 
-    def _get_masks(self, z):
-        return [torch.bernoulli(z.data.new(z.data.size()).fill_(self.p)) for _ in range(self.num_mask)]
+    def _get_masks(self, z, num_mask, p):
+        return [torch.bernoulli(z.data.new(z.data.size()).fill_(p)) for _ in range(num_mask)]
 
     def forward(self, X_j, X_m, L, K):
         """Return probability that X comes from joint distributions.
@@ -94,7 +96,7 @@ class CPCModel(nn.Module):
         """
         c = self.get_context(X_j[..., :L])
         predictions = self.get_predictions(c, K)
-        masks = self._get_masks(predictions[0])
+        masks = self._get_masks(predictions[0], p=self.p, num_mask=self.num_mask)
         score_j = self.get_score_of(X_j[..., L:], K, predictions, masks)
         if isinstance(X_m, list):
             score_m = [None] * len(X_m)
