@@ -16,19 +16,19 @@ zikkou() {
     eval $cuda $classify $1 "method.sampler_mode='same'" $as
     eval $cuda $classify $1 "method.sampler_mode='same'" $asgc
     
-    eval $omp $base $1 'method.sampler_mode="diff"'
-    eval $cuda $classify $1 "method.sampler_mode='diff'" $af
-    eval $cuda $classify $1 "method.sampler_mode='diff'" $afgc
-    eval $cuda $classify $1 "method.sampler_mode='diff'" $as
-    eval $cuda $classify $1 "method.sampler_mode='diff'" $asgc
+    # eval $omp $base $1 'method.sampler_mode="diff"'
+    # eval $cuda $classify $1 "method.sampler_mode='diff'" $af
+    # eval $cuda $classify $1 "method.sampler_mode='diff'" $afgc
+    # eval $cuda $classify $1 "method.sampler_mode='diff'" $as
+    # eval $cuda $classify $1 "method.sampler_mode='diff'" $asgc
 }
 # context size
 zikkou "method.hidden=1600 method.context=800"
-zikkou "method.hidden=1600 method.context=1600"
+# zikkou "method.hidden=1600 method.context=1600"
 
 # hidden
-zikkou "method.hidden=800"
-zikkou "method.hidden=3200"
+# zikkou "method.hidden=800"
+# zikkou "method.hidden=3200"
 
 fin=$(date)
 echo "Start: $start"

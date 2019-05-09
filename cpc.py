@@ -51,8 +51,9 @@ class CPCModel(nn.Module):
         self.p = p
         if self.p == 1.0:
             assert num_mask == 1
+        self.num_mask = num_mask
         self.num_spy_mask = num_spy_mask
-        if self.num_spy_mask == 0:
+        if self.num_spy_mask != 0:
             assert p < 1.0 and 0.0 < p
 
     def get_context(self, X):
@@ -80,9 +81,11 @@ class CPCModel(nn.Module):
             if masks is None:
                 z_p = predictions[i]
                 score[i] += torch.bmm(z.unsqueeze(1), z_p.unsqueeze(2)).squeeze(2)
-            for mask in masks:
-                z_p = 1/self.p * (mask * predictions[i])
-                score[i] += 1.0/self.num_mask * torch.bmm(z.unsqueeze(1), z_p.unsqueeze(2)).squeeze(2)
+            else:
+                for mask in masks:
+                    num_mask = len(masks)
+                    z_p = 1/self.p * (mask * predictions[i])
+                    score[i] += 1.0/num_mask * torch.bmm(z.unsqueeze(1), z_p.unsqueeze(2)).squeeze(2)
         return score
 
     def get_predictions(self, c, K):
@@ -95,7 +98,7 @@ class CPCModel(nn.Module):
     def _get_masks(self, z, num_mask, p):
         return [torch.bernoulli(z.data.new(z.data.size()).fill_(p)) for _ in range(num_mask)]
 
-    def forward(self, X_j, X_m, L, K):
+    def forward(self, X_j, X_m, L, K, num_mask=None, return_predictions=False):
         """Return probability that X comes from joint distributions.
 
         Parameter
@@ -109,15 +112,27 @@ class CPCModel(nn.Module):
         K : int
             Predict size
         """
+        if num_mask is None:
+            num_mask = self.num_mask
         c = self.get_context(X_j[..., :L])
         predictions = self.get_predictions(c, K)
-        masks = self._get_masks(predictions[0], p=self.p, num_mask=self.num_mask)
+        masks = self._get_masks(predictions[0], p=self.p, num_mask=num_mask)
         score_j = self.get_score_of(X_j[..., L:], K, predictions, masks)
+        # if self.num_spy_mask != 0:
+        #     spy_masks = self._get_masks(predictions[0], p=self.p, num_mask=self.num_spy_mask)
+        #     spy_score_j = self.get_score_of(X_j[..., L:], K, predictions, spy_masks)
         if isinstance(X_m, list):
-            score_m = [None] * len(X_m)
+            score_m_list = [None] * len(X_m)
             for i, X in enumerate(X_m):
-                score_m[i] = self.get_score_of(X, K, predictions, masks)
+                score_m = self.get_score_of(X, K, predictions, masks)
+                # if self.num_spy_mask != 0:
+                #     spy_score_m = self.get_score_of(X, K, predictions, spy_masks)
+                #     # for j in range(K):
+                #     #     score_m[j] = (spy_score_j[j] > spy_score_m[j]).float() * score_m[j]
+                score_m_list[i] = score_m
+            score_m = score_m_list
         else:
             score_m = self.get_score_of(X_m, K, predictions, masks)
-
+        if return_predictions:
+            return score_j, score_m, predictions
         return score_j, score_m

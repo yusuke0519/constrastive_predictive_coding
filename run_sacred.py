@@ -147,40 +147,52 @@ ex.add_config({
 })
 
 
-def train_CPC(joint_loader, marginal_loader, model, optimizer, num_negative):
+def train_CPC(joint_loader, marginal_loader, model, optimizer, num_negative, num_spy_mask):
     """Train cpc model with a batch."""
     criterion = nn.BCELoss()
 
     X_j, _ = joint_loader.__iter__().__next__()
     X_j = X_j.float().cuda()
     optimizer.zero_grad()
-    if num_negative == 1:
-        X_m, _ = marginal_loader.__iter__().__next__()
+    # if num_negative == 1:
+    #     X_m, _ = marginal_loader.__iter__().__next__()
 
-        K = X_m.shape[-1]
-        L = X_j.shape[-1] - K
+    #     K = X_m.shape[-1]
+    #     L = X_j.shape[-1] - K
 
-        X_m = X_m.float().cuda()
-        score_j_list, score_m_list = model(X_j, X_m, L, K)
-        loss = 0
-        for score_j, score_m in zip(score_j_list, score_m_list):
-            loss += criterion(torch.sigmoid(score_j), torch.ones((len(score_j), 1)).cuda())
+    #     X_m = X_m.float().cuda()
+    #     score_j_list, score_m_list = model(X_j, X_m, L, K)
+    #     loss = 0
+    #     for score_j, score_m in zip(score_j_list, score_m_list):
+    #         loss += criterion(torch.sigmoid(score_j), torch.ones((len(score_j), 1)).cuda())
+    #         loss += criterion(torch.sigmoid(score_m), torch.zeros((len(score_j), 1)).cuda())
+    # else:
+    X_m = [None] * num_negative
+    for i in range(num_negative):
+        X, _ = marginal_loader.__iter__().__next__()
+        X_m[i] = X.float().cuda()
+    K = X_m[0].shape[-1]
+    L = X_j[0].shape[-1] - K
+    score_j_list, score_m_list, predictions = model(X_j, X_m, L, K, return_predictions=True)
+    loss = 0
+    if num_spy_mask != 0:
+        masks = model._get_masks(predictions[0], p=model.p, num_mask=num_spy_mask)
+        spy_score_j_list = model.get_score_of(X_j[..., L:], K, predictions, masks)
+        spy_score_m_list = [None] * len(X_m)
+        for i, X in enumerate(X_m):
+            score_m = model.get_score_of(X, K, predictions, masks)
+            spy_score_m_list[i] = score_m
+    for k in range(K):
+        score_j = score_j_list[k]
+        loss += criterion(torch.sigmoid(score_j), torch.ones((len(score_j), 1)).cuda())
+        for m in range(num_negative):
+            score_m = score_m_list[m][k]
+            if num_spy_mask != 0:
+                spy_score_j = spy_score_j_list[k]
+                spy_score_m = spy_score_m_list[m][k]
+                spy_mask = (spy_score_j > spy_score_m).float().detach()
+                score_m = score_m * spy_mask
             loss += criterion(torch.sigmoid(score_m), torch.zeros((len(score_j), 1)).cuda())
-    else:
-        X_m = [None] * num_negative
-        for i in range(num_negative):
-            X, _ = marginal_loader.__iter__().__next__()
-            X_m[i] = X.float().cuda()
-        K = X_m[0].shape[-1]
-        L = X_j[0].shape[-1] - K
-        score_j_list, score_m_list = model(X_j, X_m, L, K)
-        loss = 0
-        for k in range(K):
-            score_j = score_j_list[k]
-            loss += criterion(torch.sigmoid(score_j), torch.ones((len(score_j), 1)).cuda())
-            for m in range(num_negative):
-                score_m = score_m_list[m][k]
-                loss += criterion(torch.sigmoid(score_m), torch.zeros((len(score_j), 1)).cuda())
 
     loss = loss / (2*K)
     loss.backward()
@@ -304,7 +316,8 @@ def CPC(_config, _seed, _run):
         get_c_of = get_feature_of(model.g_enc, model.c_enc, _config['dataset']['L'])
         for num_iter in range(_config['optim']['num_batch']):
             loss = train_CPC(
-                train_loader_joint, train_loader_marginal, model, optimizer, _config['method']['num_negative'])
+                train_loader_joint, train_loader_marginal, model, optimizer,
+                _config['method']['num_negative'], _config['method']['num_spy_mask'])
             if (num_iter+1) % monitor_per != 0:
                 continue
             print(num_iter+1, loss.item())

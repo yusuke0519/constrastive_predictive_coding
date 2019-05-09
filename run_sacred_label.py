@@ -193,16 +193,37 @@ def label_predict(_config, _seed, _run):
         if _config['classifier']['auxiliary'] != 0.0:
             assert _config['method']['name'] == 'CPC'
             aux_criterion = nn.BCELoss()
-            X_m, _ = train_loader_marginal.__iter__().__next__()
-            K = X_m.shape[-1]
+            # X_m, _ = train_loader_marginal.__iter__().__next__()
+            num_negative = _config['method']['num_negative']
+            num_spy_mask = _config['method']['num_spy_mask']
+            X_m = [None] * num_negative
+            for i in range(num_negative):
+                _X, _ = train_loader_marginal.__iter__().__next__()
+                X_m[i] = _X.float().cuda()
+            K = X_m[0].shape[-1]
             L = X.shape[-1] - K
             X = X.float().cuda()
-            X_m = X_m.float().cuda()
             score_j_list, score_m_list = model(X, X_m, L, K)
+            score_j_list, score_m_list, predictions = model(X, X_m, L, K, return_predictions=True)
             _loss = 0
-            for score_j, score_m in zip(score_j_list, score_m_list):
-                _loss += aux_criterion(score_j, torch.ones((len(score_j), 1)).cuda())
-                _loss += aux_criterion(score_m, torch.zeros((len(score_j), 1)).cuda())
+            if num_spy_mask != 0:
+                masks = model._get_masks(predictions[0], p=model.p, num_mask=num_spy_mask)
+                spy_score_j_list = model.get_score_of(X[..., L:], K, predictions, masks)
+                spy_score_m_list = [None] * len(X_m)
+                for i, X in enumerate(X_m):
+                    score_m = model.get_score_of(X, K, predictions, masks)
+                    spy_score_m_list[i] = score_m
+            for k in range(K):
+                score_j = score_j_list[k]
+                loss += criterion(torch.sigmoid(score_j), torch.ones((len(score_j), 1)).cuda())
+                for m in range(num_negative):
+                    score_m = score_m_list[m][k]
+                    if num_spy_mask != 0:
+                        spy_score_j = spy_score_j_list[k]
+                        spy_score_m = spy_score_m_list[m][k]
+                        spy_mask = (spy_score_j > spy_score_m).float().detach()
+                        score_m = score_m * spy_mask
+                    _loss += aux_criterion(torch.sigmoid(score_m), torch.zeros((len(score_j), 1)).cuda())
             _loss = _loss / (2*K)
             loss += _config['classifier']['auxiliary'] * _loss
         loss.backward()

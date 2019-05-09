@@ -40,6 +40,7 @@ train() {
 }
 
 # CPC train
+pretrain "method.hidden=1600 method.context=800" "method.num_negative=1"
 pretrain "method.hidden=1600 method.context=800" "method.num_negative=2"
 pretrain "method.hidden=1600 method.context=800" "method.num_negative=4"
 # pretrain "method.hidden=1600 method.context=800" "method.num_negative=1 method.mask_size=0.2 method.num_mask=10"
@@ -49,8 +50,10 @@ pretrain "method.hidden=1600 method.context=800" "method.num_negative=4"
 # pretrain "method.hidden=1600 method.context=800" "method.num_negative=1 method.mask_size=0.1 method.num_mask=20"
 pretrain "method.hidden=1600 method.context=800" "method.num_negative=1 method.mask_size=0.2 method.num_mask=10"
 pretrain "method.hidden=1600 method.context=800" "method.num_negative=1 method.mask_size=0.2 method.num_mask=10 method.num_negative=4"
+pretrain "method.hidden=1600 method.context=800" "method.num_negative=1 method.mask_size=0.2 method.num_mask=10 method.num_spy_mask=10"
 pretrain "method.hidden=1600 method.context=800" "method.num_negative=1 method.mask_size=0.05 method.num_mask=10"
 pretrain "method.hidden=1600 method.context=800" "method.num_negative=1 method.mask_size=0.05 method.num_mask=10 method.num_negative=4"
+pretrain "method.hidden=1600 method.context=800" "method.num_negative=1 method.mask_size=0.05 method.num_mask=10 method.num_spy_mask=10"
 pretrain "method.hidden=1600 method.context=800" "method.num_negative=1 method.mask_size=0.05 method.num_mask=20"
 pretrain "method.hidden=1600 method.context=800" "method.num_negative=1 method.mask_size=0.05 method.num_mask=20 method.num_negative=4"
 
