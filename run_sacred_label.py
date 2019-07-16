@@ -215,7 +215,7 @@ def label_predict(_config, _seed, _run):
                     spy_score_m_list[i] = score_m
             for k in range(K):
                 score_j = score_j_list[k]
-                loss += criterion(torch.sigmoid(score_j), torch.ones((len(score_j), 1)).cuda())
+                loss += aux_criterion(torch.sigmoid(score_j), torch.ones((len(score_j), 1)).cuda())
                 for m in range(num_negative):
                     score_m = score_m_list[m][k]
                     if num_spy_mask != 0:
