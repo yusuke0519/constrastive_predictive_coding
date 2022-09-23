@@ -42,7 +42,7 @@ Pillow==5.4.1
 -e git+git@github.com:masa-su/pixyz.git@094ebf422108650418a88b9310bf44fe8f2b6fea#egg=pixyz
 prometheus-client==0.6.0
 prompt-toolkit==2.0.9
-protobuf==3.7.0
+protobuf==3.18.3
 ptyprocess==0.6.0
 py-cpuinfo==4.0.0
 pycodestyle==2.5.0
